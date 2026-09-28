@@ -12,7 +12,7 @@
   },
   "passed": true,
   "seconds": {
-    "build": 2.0,
-    "simulation": 7.6
+    "build": 0.1,
+    "simulation": 7.4
   }
 }

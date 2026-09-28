@@ -35,12 +35,12 @@ The project brief, verbatim:
 | Every abstraction identified | Model boundary is the `strata_soc` port list: memory macros and board devices only | [abstractions.md](abstractions.md) | `tools/crates/strata-sim` |
 | Assembler | Own assembler and linker; clang used only to translate C to assembly | [toolchain.md](toolchain.md) | `tools/crates/strata-asm` |
 | Boot software, drivers, OS, game | Boot ROM loads the OS from SPI flash; preemptive kernel with U-mode tasks isolated by PMP | [software.md](software.md) | `sw/` |
-| Debugger | Native application over a deterministic gate-level session | [debugger.md](debugger.md) | `tools/crates/strata-debug`, `strata-dbg` |
-| Verification | Directed and conformance ISA tests, formal checks, RTL/gate lockstep, equivalence checking, whole-machine tests | [verification.md](verification.md) | `verif/` |
-| FPGA flow | ULX3S (Lattice ECP5) with yosys, nextpnr, ecppack | [fpga.md](fpga.md) | `fpga/` |
+| Debugger | Native application over a deterministic gate-level session, with layout and transistor views | [debugger.md](debugger.md) | `tools/crates/strata-debug`, `strata-dbg` |
+| Verification | Directed and conformance ISA tests, formal checks, RTL/gate lockstep, equivalence checking, four-state simulation, whole-machine tests | [verification.md](verification.md) | `verif/`, `scripts/` |
+| FPGA flow | ULX3S (Lattice ECP5) with yosys, nextpnr, ecppack; board-level simulation with a DVI receiver | [fpga.md](fpga.md) | `rtl/fpga/`, `fpga/`, `scripts/fpga.py` |
 | Result categories | Every result is labeled simulated, implementation-tool, or physically tested | [results.md](results.md) | `results/` |
-| Transistor-level analysis | ngspice on the PDK's transistor netlists of selected cells | [physical.md](physical.md) | `tools/crates/strata-spice` |
-| Physical layout view | OpenROAD place and route of the same netlist | [physical.md](physical.md) | `asic/` |
+| Transistor-level analysis | ngspice on the PDK's transistor netlists: every cell type's logic, the main cells' timing, any cell from the debugger | [physical.md](physical.md#transistor-level-analysis) | `tools/crates/strata-spice` |
+| Physical layout view | OpenROAD place and route of the same netlist, proven equivalent; read by the debugger | [physical.md](physical.md) | `physical/`, `scripts/physical.py`, `tools/crates/strata-layout` |
 
 ## 2. System overview
 
@@ -96,9 +96,9 @@ in [software.md](software.md).
 |------|--------------------------|----------|-------|
 | RTL simulation | Verilator or iverilog on the SystemVerilog | Cycle-exact functional; iverilog is 4-state | Whole machine |
 | Gate simulation | `strata-gate` on the sky130 netlist | Cycle-exact, zero-delay, 2-state, cell functions from Liberty | `strata_soc` logic; memories and board devices abstracted ([abstractions.md](abstractions.md)) |
-| Transistor analysis | ngspice with sky130 device models on PDK cell netlists | Analog transient of single cells with estimated loads | Selected cells, one at a time |
-| Physical layout | OpenROAD placement and routing | Real placement and routing geometry, sign-off not claimed | `strata_soc` logic without memory macros |
-| FPGA | ECP5 bitstream on ULX3S | Real hardware | Whole machine |
+| Transistor analysis | ngspice with sky130 device models on PDK cell netlists | Analog transient, typical corner; schematic netlists without layout parasitics; lumped loads (from the layout's extraction in the debugger) | Every cell type (logic), the most used cells (timing), any selected cell |
+| Physical layout | OpenROAD placement, routing and extraction | Real placement and routing geometry and extracted parasitics; router DRC only, no signoff DRC/LVS; typical corner | `strata_soc` logic without memory macros or pads |
+| FPGA | ECP5 bitstream on ULX3S | Real hardware; the bitstream is built and the board-level design simulated, not yet run on a board | Whole machine |
 
 [physical.md](physical.md) and [results.md](results.md) give the details and
 the evidence for each.
@@ -145,9 +145,15 @@ See [verification.md](verification.md).
 
 * FPGA: the same RTL is synthesized for the Lattice ECP5 on a ULX3S board,
   with HDMI video, the on-board flash, buttons, LEDs and USB serial
-  ([fpga.md](fpga.md)).
+  ([fpga.md](fpga.md)). Bitstreams for the 25F, 45F and 85F parts meet
+  timing, and the complete FPGA design, simulated with a DVI receiver,
+  produces the same picture as the gate-level model. It has not yet been
+  run on a board; fpga.md gives the bring-up procedure.
 * ASIC: the gate-level netlist is placed and routed with OpenROAD in the
-  sky130 process ([physical.md](physical.md)).
+  sky130 process ([physical.md](physical.md)). The layout meets timing at
+  25 MHz with no routing design rule violations and is formally equivalent
+  to the simulated netlist. Memory macros, a pad ring and signoff checks
+  would be needed for fabrication.
 
 ## 7. Repository layout
 
@@ -156,8 +162,17 @@ See [verification.md](verification.md).
 | `docs/` | this document and the specifications |
 | `rtl/` | SystemVerilog: `core/`, `soc/`, `periph/`, `mem/`, `fpga/` |
 | `sw/` | boot ROM, kernel, user programs, runtime library, tests |
-| `tools/` | Rust workspace: assembler, netlist and simulation crates, debugger |
+| `tools/` | Rust workspace: assembler, netlist and simulation crates, debugger, layout reader, transistor-level analysis |
 | `verif/` | testbenches, ISA tests, formal and equivalence setups |
 | `scripts/` | flow drivers (synthesis, tests, reports) |
-| `fpga/`, `asic/` | implementation flows |
-| `results/` | generated reports, labeled by result category |
+| `fpga/` | ULX3S constraints (the FPGA top is in `rtl/fpga/`) |
+| `physical/` | OpenROAD configuration for the sky130 layout |
+| `results/` | recorded results, labeled by category ([results.md](results.md)) |
+
+## 8. Status
+
+Everything in the requirements is implemented. [results.md](results.md)
+lists every result by category. In short: the machine, its software and the
+debugger work in simulation, with the gate-level and RTL models agreeing
+cycle for cycle; the FPGA and layout flows complete with timing met; and
+nothing has yet been tested on physical hardware.

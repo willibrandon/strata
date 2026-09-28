@@ -1,0 +1,55 @@
+{
+  "category": "implementation-tool",
+  "note": "OpenROAD-flow-scripts (openroad/orfs image), sky130hd platform, typical corner; reported by the tools, not measured. strata_soc logic only: the memory macros are outside the block.",
+  "flow_seconds": null,
+  "netlist_check": {
+    "simulated_cells": 14895,
+    "cells_read_by_openroad": 14891,
+    "differences": 0,
+    "cells_without_fanout_removed": [
+      "u_core/_c763_",
+      "u_core/_c781_",
+      "u_core/_c838_",
+      "u_core/_c840_"
+    ],
+    "first_differences": []
+  },
+  "equivalence": {
+    "tool": "kepler-formal (combinational equivalence, flip-flops matched by name)",
+    "identical": true,
+    "compared_outputs": 9264,
+    "compared_inputs": 3476
+  },
+  "metrics": {
+    "die_area_um2": 374471,
+    "core_area_um2": 362788,
+    "standard_cell_area_um2": 195446,
+    "utilization": 0.538734,
+    "instances": 53393,
+    "instances_by_class": {
+      "fill_cell": 31513,
+      "tap_cell": 4794,
+      "antenna_cell": 45,
+      "clock_buffer": 471,
+      "timing_repair_buffer": 1397,
+      "inverter": 440,
+      "clock_inverter": 194,
+      "sequential_cell": 3209,
+      "multi_input_combinational_cell": 11330
+    },
+    "clock_period_ns": 40.0,
+    "setup_worst_slack_ns": 7.42915,
+    "hold_worst_slack_ns": 0.332609,
+    "setup_tns_ns": 0,
+    "hold_tns_ns": 0,
+    "fmax_mhz": 30.7,
+    "clock_skew_ns": 0.0862198,
+    "max_slew_violations": 0,
+    "max_cap_violations": 0,
+    "max_fanout_violations": 0,
+    "power_mw": 10.649,
+    "ir_drop_worst_mv": 0.056,
+    "drc_violations": 0
+  },
+  "passed": true
+}

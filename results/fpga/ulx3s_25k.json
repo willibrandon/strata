@@ -71,7 +71,7 @@
   "bitstream": "build/fpga/strata_ulx3s_25k.bit",
   "warnings": [],
   "seconds": {
-    "synthesis": 7.4,
-    "place_and_route": 34.3
+    "synthesis": 17.1,
+    "place_and_route": 44.9
   }
 }
