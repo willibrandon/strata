@@ -12,7 +12,7 @@
       "status": "PASS",
       "proven": 37,
       "unproven": 0,
-      "seconds": 1.5,
+      "seconds": 1.3,
       "log": "build/equiv/st_alu_strata_soc.u_core.u_alu.log"
     },
     {
@@ -28,7 +28,7 @@
       "status": "PASS",
       "proven": 893,
       "unproven": 0,
-      "seconds": 4.6,
+      "seconds": 4.2,
       "log": "build/equiv/st_csr_strata_soc.u_core.u_csr.log"
     },
     {
@@ -36,7 +36,7 @@
       "status": "PASS",
       "proven": 255,
       "unproven": 0,
-      "seconds": 1.3,
+      "seconds": 1.0,
       "log": "build/equiv/st_dbus_strata_soc.u_dbus.log"
     },
     {
@@ -52,7 +52,7 @@
       "status": "PASS",
       "proven": 264,
       "unproven": 0,
-      "seconds": 1.1,
+      "seconds": 1.0,
       "log": "build/equiv/st_fetch_strata_soc.u_core.u_fetch.log"
     },
     {
@@ -60,7 +60,7 @@
       "status": "PASS",
       "proven": 84,
       "unproven": 0,
-      "seconds": 1.0,
+      "seconds": 0.9,
       "log": "build/equiv/st_fifo_strata_soc.u_uart.u_rxf.log"
     },
     {
@@ -68,7 +68,7 @@
       "status": "PASS",
       "proven": 84,
       "unproven": 0,
-      "seconds": 1.0,
+      "seconds": 0.9,
       "log": "build/equiv/st_fifo_strata_soc.u_uart.u_txf.log"
     },
     {
@@ -76,7 +76,7 @@
       "status": "PASS",
       "proven": 76,
       "unproven": 0,
-      "seconds": 1.1,
+      "seconds": 0.8,
       "log": "build/equiv/st_gpio_strata_soc.u_gpio.log"
     },
     {
@@ -84,7 +84,7 @@
       "status": "PASS",
       "proven": 65,
       "unproven": 0,
-      "seconds": 1.0,
+      "seconds": 0.8,
       "log": "build/equiv/st_ibus_strata_soc.u_ibus.log"
     },
     {
@@ -92,7 +92,7 @@
       "status": "PASS",
       "proven": 37,
       "unproven": 0,
-      "seconds": 0.9,
+      "seconds": 0.8,
       "log": "build/equiv/st_intc_strata_soc.u_intc.log"
     },
     {
@@ -100,7 +100,7 @@
       "status": "PASS",
       "proven": 287,
       "unproven": 0,
-      "seconds": 32.9,
+      "seconds": 312.2,
       "log": "build/equiv/st_pmp_strata_soc.u_core.u_pmp_data.log"
     },
     {
@@ -108,7 +108,7 @@
       "status": "PASS",
       "proven": 287,
       "unproven": 0,
-      "seconds": 34.0,
+      "seconds": 5.6,
       "log": "build/equiv/st_pmp_strata_soc.u_core.u_pmp_fetch.log"
     },
     {
@@ -116,7 +116,7 @@
       "status": "PASS",
       "proven": 2048,
       "unproven": 0,
-      "seconds": 5.9,
+      "seconds": 5.2,
       "log": "build/equiv/st_regfile_strata_soc.u_core.u_rf.log"
     },
     {
@@ -124,7 +124,7 @@
       "status": "PASS",
       "proven": 3,
       "unproven": 0,
-      "seconds": 0.9,
+      "seconds": 0.8,
       "log": "build/equiv/st_reset_strata_soc.u_reset.log"
     },
     {
@@ -132,7 +132,7 @@
       "status": "PASS",
       "proven": 75,
       "unproven": 0,
-      "seconds": 1.0,
+      "seconds": 0.9,
       "log": "build/equiv/st_spi_strata_soc.u_spi.log"
     },
     {
@@ -140,7 +140,7 @@
       "status": "PASS",
       "proven": 74,
       "unproven": 0,
-      "seconds": 1.0,
+      "seconds": 0.8,
       "log": "build/equiv/st_sys_strata_soc.u_sys.log"
     },
     {
@@ -148,7 +148,7 @@
       "status": "PASS",
       "proven": 227,
       "unproven": 0,
-      "seconds": 1.3,
+      "seconds": 1.2,
       "log": "build/equiv/st_timer_strata_soc.u_timer.log"
     },
     {
@@ -172,7 +172,7 @@
       "status": "PASS",
       "proven": 1971,
       "unproven": 0,
-      "seconds": 1.2,
+      "seconds": 1.1,
       "log": "build/equiv/strata_soc.log"
     }
   ]

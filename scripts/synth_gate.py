@@ -53,6 +53,8 @@ opt_clean
 setundef -zero
 hilomap -singleton -hicell sky130_fd_sc_hd__conb_1 HI -locell sky130_fd_sc_hd__conb_1 LO
 opt_clean
+rename -enumerate -pattern _c%_ t:*
+rename -enumerate -pattern _n%_ w:*
 check -assert
 tee -o {out}/gate_stat.txt stat -liberty {lib}
 write_json {out}/strata_soc.json
