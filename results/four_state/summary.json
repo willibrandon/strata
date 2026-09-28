@@ -1,0 +1,450 @@
+{
+  "category": "simulated",
+  "tool": "Icarus Verilog (four-state), verif/tb/tb_machine.sv",
+  "counts": {
+    "PASS": 60,
+    "SKIP": 4
+  },
+  "results": [
+    {
+      "test": "boot-to-shell",
+      "status": "PASS",
+      "detail": "halt code 9",
+      "cycles": 2209517,
+      "seconds": 86.7
+    },
+    {
+      "test": "rv32mi-breakpoint",
+      "status": "SKIP",
+      "reason": "debug triggers (tselect/tdata) are not implemented"
+    },
+    {
+      "test": "rv32mi-csr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 832,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32mi-illegal",
+      "status": "SKIP",
+      "reason": "exercises S-mode (sret, sfence.vma, satp), which S1 does not implement"
+    },
+    {
+      "test": "rv32mi-instret_overflow",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 648,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32mi-lh-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 651,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32mi-lw-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 731,
+      "seconds": 1.6
+    },
+    {
+      "test": "rv32mi-ma_addr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 947,
+      "seconds": 1.5
+    },
+    {
+      "test": "rv32mi-ma_fetch",
+      "status": "SKIP",
+      "reason": "requires compressed instructions (C extension)"
+    },
+    {
+      "test": "rv32mi-mcsr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 630,
+      "seconds": 1.7
+    },
+    {
+      "test": "rv32mi-pmpaddr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 624,
+      "seconds": 1.6
+    },
+    {
+      "test": "rv32mi-sbreak",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 636,
+      "seconds": 2.5
+    },
+    {
+      "test": "rv32mi-scall",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 630,
+      "seconds": 2.5
+    },
+    {
+      "test": "rv32mi-sh-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 659,
+      "seconds": 2.4
+    },
+    {
+      "test": "rv32mi-shamt",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 633,
+      "seconds": 1.9
+    },
+    {
+      "test": "rv32mi-sw-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 733,
+      "seconds": 2.3
+    },
+    {
+      "test": "rv32mi-zicntr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 672,
+      "seconds": 2.5
+    },
+    {
+      "test": "rv32ui-add",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1038,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-addi",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 806,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-and",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1058,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-andi",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 762,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-auipc",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 619,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-beq",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 875,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-bge",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 902,
+      "seconds": 2.2
+    },
+    {
+      "test": "rv32ui-bgeu",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 927,
+      "seconds": 2.1
+    },
+    {
+      "test": "rv32ui-blt",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 875,
+      "seconds": 2.0
+    },
+    {
+      "test": "rv32ui-bltu",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 900,
+      "seconds": 1.7
+    },
+    {
+      "test": "rv32ui-bne",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 877,
+      "seconds": 1.9
+    },
+    {
+      "test": "rv32ui-fence_i",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 968,
+      "seconds": 1.9
+    },
+    {
+      "test": "rv32ui-jal",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 615,
+      "seconds": 1.4
+    },
+    {
+      "test": "rv32ui-jalr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 685,
+      "seconds": 1.4
+    },
+    {
+      "test": "rv32ui-lb",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 819,
+      "seconds": 1.4
+    },
+    {
+      "test": "rv32ui-lbu",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 819,
+      "seconds": 1.4
+    },
+    {
+      "test": "rv32ui-ld_st",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1665,
+      "seconds": 1.4
+    },
+    {
+      "test": "rv32ui-lh",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 835,
+      "seconds": 1.3
+    },
+    {
+      "test": "rv32ui-lhu",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 844,
+      "seconds": 1.3
+    },
+    {
+      "test": "rv32ui-lui",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 623,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-lw",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 849,
+      "seconds": 1.3
+    },
+    {
+      "test": "rv32ui-ma_data",
+      "status": "SKIP",
+      "reason": "requires misaligned loads and stores, which trap on S1"
+    },
+    {
+      "test": "rv32ui-or",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1061,
+      "seconds": 1.3
+    },
+    {
+      "test": "rv32ui-ori",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 769,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-sb",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1032,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-sh",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1085,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-simple",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 598,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-sll",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1066,
+      "seconds": 1.3
+    },
+    {
+      "test": "rv32ui-slli",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 805,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-slt",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1032,
+      "seconds": 1.3
+    },
+    {
+      "test": "rv32ui-slti",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 801,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-sltiu",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 801,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-sltu",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1032,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-sra",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1085,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-srai",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 820,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-srl",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1079,
+      "seconds": 1.2
+    },
+    {
+      "test": "rv32ui-srli",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 814,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-st_ld",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1041,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-sub",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1030,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-sw",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1092,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-xor",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1060,
+      "seconds": 1.1
+    },
+    {
+      "test": "rv32ui-xori",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 771,
+      "seconds": 1.1
+    },
+    {
+      "test": "strata-counters",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 880,
+      "seconds": 1.8
+    },
+    {
+      "test": "strata-csr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 709,
+      "seconds": 1.9
+    },
+    {
+      "test": "strata-faults",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1804,
+      "seconds": 1.8
+    },
+    {
+      "test": "strata-irq",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 384915,
+      "seconds": 16.8
+    },
+    {
+      "test": "strata-pmp",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "cycles": 1348,
+      "seconds": 1.5
+    }
+  ]
+}
