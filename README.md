@@ -68,13 +68,25 @@ docs/setup.md lists the tools and versions. With them installed:
     make -C sw
     python3 scripts/synth_gate.py
 
-Run the machine on the gate-level model and type into its shell (each line
-is typed when the shell shows its prompt; booting takes a minute or two in
-this mode):
+Run the machine with your terminal as its serial console, and type into its
+shell:
 
-    tools/target/release/strata-run --uart-in 'help\nhalt 0\n'
+    tools/target/release/strata-run --interactive
 
-The RTL model is 50 to 100 times faster:
+This uses the gate-level model, which simulates every cell, so the boot
+takes about a minute before the strata> prompt appears. Type help for the
+commands. Ctrl-C or Ctrl-] quits. The RTL model boots in under a second:
+
+    tools/target/release/strata-run --engine rtl --interactive
+
+Time inside the machine is simulated time. On the RTL model the machine runs
+about 8 times slower than real hardware would, and on the gate-level model
+several hundred times slower, so a command like sleep 1000 takes a while.
+The game draws on the video output, which a terminal cannot show. The
+debugger shows it in its Display tab.
+
+To send a fixed list of commands and exit, for scripts and tests, use
+--uart-in instead. Each line is typed after the machine prints a prompt:
 
     tools/target/release/strata-run --engine rtl --uart-in 'blocks 20\nhalt 0\n'
 

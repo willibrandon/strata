@@ -4,9 +4,10 @@
 //! by cell; the only host-side parts are the memory macros and the devices on
 //! the pins (terminal, boot flash, buttons, display).
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{Command, ExitCode, Stdio};
+use std::sync::mpsc::{channel, TryRecvError};
 use std::time::Instant;
 
 use strata_gate::{EvalMode, GateSim, PowerOn};
@@ -24,6 +25,10 @@ const USAGE: &str = "usage: strata-run [options]
   --ram <hex|bin>        preload RAM (test-harness shortcut)
   --flash <file>|none    flash contents from 0x200000 (default build/sw/flash.bin,
                          unless --ram is given; none: erased flash)
+  -i, --interactive      use this terminal as the machine's serial console:
+                         keys go to the UART as you type, output appears as the
+                         machine sends it; Ctrl-C or Ctrl-] quits (no cycle
+                         limit unless --max-cycles is given)
   --uart-in <text>       lines to type on the terminal (\\n ends a line); each
                          line is typed after the machine prints a prompt
                          ending in \"> \", as a person would (the UART has no
@@ -67,6 +72,8 @@ struct Args {
     trace: Option<PathBuf>,
     screenshot: Option<PathBuf>,
     frame: Option<u64>,
+    interactive: bool,
+    max_cycles_set: bool,
     eval: EvalMode,
     power_on: PowerOn,
     expect_halt: Option<u8>,
@@ -103,6 +110,8 @@ fn parse_args() -> Result<Args, String> {
         trace: None,
         screenshot: None,
         frame: None,
+        interactive: false,
+        max_cycles_set: false,
         eval: EvalMode::Event,
         power_on: PowerOn::Zero,
         expect_halt: None,
@@ -137,9 +146,13 @@ fn parse_args() -> Result<Args, String> {
             "--script" => a.script = Some(val()?.into()),
             "--uart-div" => a.uart_div = parse_num(&val()?)? as u32,
             "--buttons" => a.buttons = parse_num(&val()?)? as u8,
-            "--max-cycles" => a.max_cycles = parse_num(&val()?)?,
+            "--max-cycles" => {
+                a.max_cycles = parse_num(&val()?)?;
+                a.max_cycles_set = true;
+            }
             "--trace" => a.trace = Some(val()?.into()),
             "--screenshot" => a.screenshot = Some(val()?.into()),
+            "-i" | "--interactive" => a.interactive = true,
             "--frame" => a.frame = Some(parse_num(&val()?)?),
             "--eval" => {
                 a.eval = match val()?.as_str() {
@@ -167,6 +180,77 @@ fn parse_args() -> Result<Args, String> {
         a.flash = existing("build/sw/flash.bin");
     }
     Ok(a)
+}
+
+/// Puts the terminal in character mode (keys delivered as typed, no local
+/// echo, Ctrl-C delivered as a key) and restores the saved settings when
+/// dropped. Does nothing when standard input is not a terminal.
+struct CharacterMode {
+    saved: Option<String>,
+}
+
+impl CharacterMode {
+    fn enter() -> CharacterMode {
+        let stty = |args: &[&str]| Command::new("stty").args(args).stdin(Stdio::inherit()).output().ok().filter(|o| o.status.success());
+        let saved = stty(&["-g"]).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+        if saved.is_some() {
+            stty(&["-icanon", "-echo", "-isig", "min", "1"]);
+        }
+        CharacterMode { saved }
+    }
+}
+
+impl Drop for CharacterMode {
+    fn drop(&mut self) {
+        if let Some(s) = &self.saved {
+            let _ = Command::new("stty").arg(s).stdin(Stdio::inherit()).status();
+        }
+    }
+}
+
+/// Runs the machine with this terminal as its serial console until it halts,
+/// the user quits (Ctrl-C or Ctrl-]), or `limit` cycles. Returns whether the
+/// machine halted.
+fn interactive<E: Engine>(
+    m: &mut Machine<E>,
+    observe: &mut dyn FnMut(&strata_sim::StepEvents),
+    limit: Option<u64>,
+    gate: bool,
+) -> bool {
+    let _mode = CharacterMode::enter();
+    eprintln!("[strata-run] this terminal is the machine's serial port; Ctrl-C or Ctrl-] quits");
+    if gate {
+        eprintln!("[strata-run] the gate-level model boots in about a minute; type at the strata> prompt");
+    }
+    let (tx, rx) = channel::<u8>();
+    std::thread::spawn(move || {
+        let mut stdin = std::io::stdin().lock();
+        let mut buf = [0u8; 64];
+        while let Ok(n) = stdin.read(&mut buf) {
+            if n == 0 || buf[..n].iter().any(|&b| tx.send(b).is_err()) {
+                break;
+            }
+        }
+    });
+    loop {
+        loop {
+            match rx.try_recv() {
+                Ok(0x03 | 0x1d) => {
+                    eprintln!();
+                    return false;
+                }
+                Ok(b) => m.host.uart.send(&[b]),
+                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
+            }
+        }
+        // Short slices keep typing responsive on the slower gate-level model.
+        if m.run(2000, &mut *observe) {
+            return true;
+        }
+        if limit.is_some_and(|l| m.cycle() >= l) {
+            return false;
+        }
+    }
 }
 
 /// Reads a memory image: `$readmemh`-style hex words (one per line) or raw bytes.
@@ -295,6 +379,11 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
             .map_err(|e| format!("script: {e}"))?;
     }
     let halted = match args.frame {
+        _ if args.interactive => {
+            let limit = args.max_cycles_set.then_some(args.max_cycles);
+            let gate = !m.engine.describe().starts_with("rtl");
+            m.halted() || interactive(&mut m, &mut observe, limit, gate)
+        }
         Some(n) => {
             let mut halted = m.halted();
             while !halted && m.host.display.frames < n && m.cycle() < args.max_cycles {
