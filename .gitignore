@@ -1,0 +1,7 @@
+/build/
+/tools/target/
+/third_party/
+*.vcd
+*.fst
+__pycache__/
+.DS_Store
