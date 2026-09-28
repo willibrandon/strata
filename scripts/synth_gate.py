@@ -9,8 +9,10 @@ physical design:
   build/gate/gate_stat.txt     cell counts and area
 
 Module hierarchy is preserved, so each cell belongs to the RTL module that
-produced it. Registers are never retimed: every flip-flop is one RTL register
-bit. Memory macros are outside strata_soc and do not appear.
+produced it. Registers are never retimed and state machines are not
+re-encoded (-nofsm): every flip-flop is one RTL register bit with its RTL
+name, which the debugger and the equivalence check rely on. Memory macros
+are outside strata_soc and do not appear.
 """
 import argparse
 import subprocess
@@ -42,7 +44,7 @@ plugin -i slang
 read_liberty -lib {lib}
 read_slang --keep-hierarchy {' '.join(rtl_files())} --top strata_soc
 hierarchy -check -top strata_soc
-synth -top strata_soc
+synth -top strata_soc -nofsm
 opt_clean
 dfflibmap -liberty {lib} {du}
 opt

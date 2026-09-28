@@ -16,7 +16,7 @@
       "test": "rv32mi-csr",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.47
+      "seconds": 0.18
     },
     {
       "test": "rv32mi-illegal",
@@ -27,25 +27,25 @@
       "test": "rv32mi-instret_overflow",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.33
+      "seconds": 0.2
     },
     {
       "test": "rv32mi-lh-misaligned",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.5
+      "seconds": 0.22
     },
     {
       "test": "rv32mi-lw-misaligned",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.4
+      "seconds": 0.2
     },
     {
       "test": "rv32mi-ma_addr",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.43
+      "seconds": 0.19
     },
     {
       "test": "rv32mi-ma_fetch",
@@ -56,175 +56,175 @@
       "test": "rv32mi-mcsr",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.42
+      "seconds": 0.18
     },
     {
       "test": "rv32mi-pmpaddr",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.4
+      "seconds": 0.17
     },
     {
       "test": "rv32mi-sbreak",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.33
+      "seconds": 0.14
     },
     {
       "test": "rv32mi-scall",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.36
+      "seconds": 0.14
     },
     {
       "test": "rv32mi-sh-misaligned",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.29
+      "seconds": 0.13
     },
     {
       "test": "rv32mi-shamt",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.31
+      "seconds": 0.13
     },
     {
       "test": "rv32mi-sw-misaligned",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.21
+      "seconds": 0.13
     },
     {
       "test": "rv32mi-zicntr",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.19
+      "seconds": 0.13
     },
     {
       "test": "rv32ui-add",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.35
+      "seconds": 0.39
     },
     {
       "test": "rv32ui-addi",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.47
+      "seconds": 0.38
     },
     {
       "test": "rv32ui-and",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.38
+      "seconds": 0.41
     },
     {
       "test": "rv32ui-andi",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.28
+      "seconds": 0.35
     },
     {
       "test": "rv32ui-auipc",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.44
+      "seconds": 0.37
     },
     {
       "test": "rv32ui-beq",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.47
+      "seconds": 0.38
     },
     {
       "test": "rv32ui-bge",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.49
+      "seconds": 0.4
     },
     {
       "test": "rv32ui-bgeu",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.45
+      "seconds": 0.37
     },
     {
       "test": "rv32ui-blt",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.37
+      "seconds": 0.35
     },
     {
       "test": "rv32ui-bltu",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.44
+      "seconds": 0.36
     },
     {
       "test": "rv32ui-bne",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.35
+      "seconds": 0.36
     },
     {
       "test": "rv32ui-fence_i",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.44
+      "seconds": 0.4
     },
     {
       "test": "rv32ui-jal",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.23
+      "seconds": 0.2
     },
     {
       "test": "rv32ui-jalr",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.51
+      "seconds": 0.19
     },
     {
       "test": "rv32ui-lb",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.68
+      "seconds": 0.19
     },
     {
       "test": "rv32ui-lbu",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.52
+      "seconds": 0.23
     },
     {
       "test": "rv32ui-ld_st",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.69
+      "seconds": 0.26
     },
     {
       "test": "rv32ui-lh",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.36
+      "seconds": 0.18
     },
     {
       "test": "rv32ui-lhu",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.44
+      "seconds": 0.17
     },
     {
       "test": "rv32ui-lui",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.22
+      "seconds": 0.21
     },
     {
       "test": "rv32ui-lw",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.6
+      "seconds": 0.23
     },
     {
       "test": "rv32ui-ma_data",
@@ -235,121 +235,121 @@
       "test": "rv32ui-or",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.59
+      "seconds": 0.24
     },
     {
       "test": "rv32ui-ori",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.44
+      "seconds": 0.22
     },
     {
       "test": "rv32ui-sb",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.33
+      "seconds": 0.21
     },
     {
       "test": "rv32ui-sh",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.38
+      "seconds": 0.26
     },
     {
       "test": "rv32ui-simple",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.37
+      "seconds": 0.21
     },
     {
       "test": "rv32ui-sll",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.49
+      "seconds": 0.24
     },
     {
       "test": "rv32ui-slli",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.56
+      "seconds": 0.24
     },
     {
       "test": "rv32ui-slt",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.29
+      "seconds": 0.23
     },
     {
       "test": "rv32ui-slti",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.37
+      "seconds": 0.18
     },
     {
       "test": "rv32ui-sltiu",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.39
+      "seconds": 0.19
     },
     {
       "test": "rv32ui-sltu",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.35
+      "seconds": 0.16
     },
     {
       "test": "rv32ui-sra",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.5
+      "seconds": 0.22
     },
     {
       "test": "rv32ui-srai",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.4
+      "seconds": 0.19
     },
     {
       "test": "rv32ui-srl",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.45
+      "seconds": 0.22
     },
     {
       "test": "rv32ui-srli",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.4
+      "seconds": 0.18
     },
     {
       "test": "rv32ui-st_ld",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.57
+      "seconds": 0.21
     },
     {
       "test": "rv32ui-sub",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.46
+      "seconds": 0.22
     },
     {
       "test": "rv32ui-sw",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.43
+      "seconds": 0.22
     },
     {
       "test": "rv32ui-xor",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.56
+      "seconds": 0.19
     },
     {
       "test": "rv32ui-xori",
       "status": "PASS",
       "detail": "halt code 0",
-      "seconds": 0.49
+      "seconds": 0.19
     }
   ]
 }
