@@ -431,7 +431,7 @@ impl Session {
         if now > self.head {
             self.head = now;
         }
-        if now % self.config.checkpoint_interval == 0 && !self.checkpoints.contains_key(&now) {
+        if now.is_multiple_of(self.config.checkpoint_interval) && !self.checkpoints.contains_key(&now) {
             self.save_checkpoint();
         }
         ev
@@ -614,7 +614,7 @@ impl Session {
             if self.machine.halted() {
                 return StopReason::Halted;
             }
-            if self.cycle() % 1024 == 0 && stop() {
+            if self.cycle().is_multiple_of(1024) && stop() {
                 return StopReason::Budget;
             }
         }

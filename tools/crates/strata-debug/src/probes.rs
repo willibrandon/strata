@@ -104,7 +104,7 @@ impl ArchProbes {
         let stage = |name: &'static str, valid: &str, pc: &str, insn: Option<&str>, get: &mut dyn FnMut(&str) -> Option<Signal>| {
             let v = get(valid).unwrap_or_else(|| constant(valid, false));
             let p = get(pc).unwrap_or_else(|| constant(pc, false));
-            StageProbes { name, valid: v, pc: p, insn: insn.and_then(|n| get(n)) }
+            StageProbes { name, valid: v, pc: p, insn: insn.and_then(&mut *get) }
         };
         let stages = vec![
             stage("F", "u_core.u_fetch.pend_q", "u_core.u_fetch.pend_pc_q", None, &mut get),
