@@ -1,0 +1,119 @@
+{
+  "category": "simulated",
+  "note": "Whole-machine sessions; expected transcripts and screenshots in verif/machine/expected.",
+  "quick": true,
+  "tests": [
+    {
+      "test": "boot",
+      "engine": "rtl",
+      "doc": "boot from flash to the shell prompt",
+      "seconds": 0.8,
+      "halt_code": 1,
+      "cycles": 2081534,
+      "instructions": 1205151,
+      "problems": []
+    },
+    {
+      "test": "power_on_1",
+      "engine": "rtl",
+      "doc": "boot with pseudo-random flip-flop contents at power-on (seed 1)",
+      "seconds": 0.8,
+      "halt_code": 1,
+      "cycles": 2081534,
+      "instructions": 1205151,
+      "problems": []
+    },
+    {
+      "test": "power_on_2",
+      "engine": "rtl",
+      "doc": "as power_on_1, seed 2",
+      "seconds": 0.8,
+      "halt_code": 1,
+      "cycles": 2081534,
+      "instructions": 1205151,
+      "problems": []
+    },
+    {
+      "test": "shell_tour",
+      "engine": "rtl",
+      "doc": "shell commands, programs, fault containment and the game benchmark, RTL and gate compared every cycle",
+      "seconds": 3.8,
+      "halt_code": 42,
+      "cycles": 10755966,
+      "instructions": 8895276,
+      "problems": []
+    },
+    {
+      "test": "multitask",
+      "engine": "rtl",
+      "doc": "a background task counting on the LEDs while the shell runs",
+      "seconds": 2.0,
+      "halt_code": 3,
+      "cycles": 6677440,
+      "instructions": 1318866,
+      "problems": []
+    },
+    {
+      "test": "crash",
+      "engine": "rtl",
+      "doc": "all six kinds of user fault are contained",
+      "seconds": 1.5,
+      "halt_code": 4,
+      "cycles": 4069864,
+      "instructions": 3216618,
+      "problems": []
+    },
+    {
+      "test": "game",
+      "engine": "rtl",
+      "doc": "the game played with the buttons, with screenshots",
+      "seconds": 3.4,
+      "halt_code": 5,
+      "cycles": 11354531,
+      "instructions": 2194624,
+      "problems": []
+    },
+    {
+      "test": "blocks_bench",
+      "engine": "rtl",
+      "doc": "computer player, 40 pieces",
+      "seconds": 5.4,
+      "halt_code": 6,
+      "cycles": 15943295,
+      "instructions": 13367314,
+      "problems": []
+    },
+    {
+      "test": "uart_boot",
+      "engine": "rtl",
+      "doc": "no kernel in the flash: the kernel is loaded over the serial line",
+      "seconds": 1.6,
+      "halt_code": 7,
+      "cycles": 5083215,
+      "instructions": 3295278,
+      "problems": []
+    },
+    {
+      "test": "bad_crc",
+      "engine": "rtl",
+      "doc": "a corrupted kernel in the flash is rejected; recovery over the serial line",
+      "seconds": 2.0,
+      "halt_code": 8,
+      "cycles": 5883888,
+      "instructions": 3861538,
+      "problems": []
+    },
+    {
+      "test": "no_store",
+      "engine": "rtl",
+      "doc": "erased flash: the kernel stops with a panic when there is no program store",
+      "seconds": 1.5,
+      "halt_code": 238,
+      "cycles": 4400889,
+      "instructions": 2742289,
+      "problems": []
+    }
+  ],
+  "passed": 11,
+  "failed": 0
+}

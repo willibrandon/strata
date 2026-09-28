@@ -84,8 +84,10 @@ uart_boot:
     or      s5, s5, a0
     li      t0, (BOOT_MAGIC & 0xFF) << 24 | (BOOT_MAGIC >> 8 & 0xFF) << 16 | (BOOT_MAGIC >> 16 & 0xFF) << 8 | (BOOT_MAGIC >> 24)
     bne     s5, t0, 2b
-    la      a0, msg_receiving
-    jal     puts
+    /* Nothing is printed until the image has been received: the UART
+       buffers 8 bytes in each direction, so waiting for the transmitter
+       here would let the receive FIFO overflow while the sender keeps
+       going. */
     jal     load_image_after_magic
     jal     puts
     j       uart_boot
@@ -365,7 +367,6 @@ hex_digits:     .ascii "0123456789abcdef"
 msg_banner:     .asciz "\r\nStrata boot ROM 1.0\r\n"
 msg_flash:      .asciz "boot: loading from flash\r\n"
 msg_uart:       .asciz "boot: waiting for an image on the UART\r\n"
-msg_receiving:  .asciz "boot: receiving\r\n"
 msg_entry:      .asciz "boot: starting at 0x"
 msg_trap:       .asciz "boot: trap "
 msg_crlf:       .asciz "\r\n"

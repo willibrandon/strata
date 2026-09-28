@@ -1,0 +1,9 @@
+# The computer player places 40 pieces as fast as it can (fixed seed): a
+# CPU-bound workload with a deterministic result.
+expect strata> 
+send blocks 40\n
+expect blocks: 
+expect strata> 
+send info\n
+expect strata> 
+send halt 6\n

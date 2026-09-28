@@ -1,0 +1,18 @@
+
+Strata boot ROM 1.0
+boot: loading from flash
+boot: starting at 0x10000000
+[96mStrata[0m kernel 1.0: 64 KiB RAM, 25 MHz, flash id ef4018
+program store: 5 programs
+Type 'help' for commands.
+[92mstrata[0m> counter 3 &
+[2] counter
+[92mstrata[0m> ps
+  pid  state  slot  cycles       name
+    1  ready     0  8662         shell
+    2  sleep     2  290          counter
+[92mstrata[0m> ps
+  pid  state  slot  cycles       name
+    1  ready     0  20059        shell
+    2  sleep     2  868          counter
+[92mstrata[0m> halt 3

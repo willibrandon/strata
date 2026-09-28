@@ -1,0 +1,4 @@
+# Boot from the flash to the shell prompt; capture the screen.
+expect strata> 
+screenshot $OUT/boot.png
+send halt 1\n

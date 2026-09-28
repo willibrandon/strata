@@ -1,0 +1,5 @@
+# An erased flash: the kernel arrives over the serial line but finds no
+# program store, and stops with a kernel panic (halt code 0xEE).
+expect waiting for an image on the UART\r\n
+send-file $SW/system.img
+expect KERNEL PANIC

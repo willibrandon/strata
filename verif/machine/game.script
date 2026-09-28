@@ -1,0 +1,23 @@
+# Play the game with the board buttons: move, rotate, drop, pause.
+expect strata> 
+send blocks\n
+wait 2500000
+press 0x04 50000
+wait 450000
+press 0x04 50000
+wait 450000
+press 0x10 50000
+wait 450000
+press 0x20 50000
+wait 1500000
+press 0x08 50000
+wait 450000
+press 0x01 50000
+wait 1000000
+screenshot $OUT/game.png
+press 0x40 50000
+wait 900000
+screenshot $OUT/game_paused.png
+send q
+expect strata> 
+send halt 5\n

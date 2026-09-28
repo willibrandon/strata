@@ -1,0 +1,18 @@
+# Every kind of fault in a user task is contained: the kernel reports it,
+# kills only that task, and the shell carries on.
+expect strata> 
+send crash 1\n
+expect strata> 
+send crash 2\n
+expect strata> 
+send crash 3\n
+expect strata> 
+send crash 4\n
+expect strata> 
+send crash 5\n
+expect strata> 
+send crash 6\n
+expect strata> 
+send ps\n
+expect strata> 
+send halt 4\n

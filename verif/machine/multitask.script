@@ -1,0 +1,14 @@
+# A background task counts on the LEDs (sleeping 100 ms per step) while the
+# shell keeps running: preemption, sleeping tasks, the timer interrupt.
+expect strata> 
+send counter 3 &\n
+expect strata> 
+expect-leds 0x01
+send ps\n
+expect counter
+expect strata> 
+expect-leds 0x02
+expect-leds 0x03
+send ps\n
+expect strata> 
+send halt 3\n

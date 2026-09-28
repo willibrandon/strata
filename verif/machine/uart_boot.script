@@ -1,0 +1,8 @@
+# No kernel in the flash (only the program store): the boot ROM falls back to
+# the serial line, and the kernel image is sent from the terminal.
+expect waiting for an image on the UART\r\n
+send-file $SW/system.img
+expect strata> 
+send ls\n
+expect strata> 
+send halt 7\n

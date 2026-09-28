@@ -7,9 +7,11 @@
 //! # comment
 //! expect strata>          wait until the terminal output contains this text
 //! send ls\n               type text (\n, \t, \\, \xHH escapes)
+//! send-file image.bin     send the bytes of a file over the serial line
 //! wait 100000             let this many cycles pass
 //! buttons 0x10            set the button levels
 //! press 0x10 200000       hold buttons for a number of cycles, then release
+//! expect-leds 0x01        wait until the LED pins show this value
 //! screenshot shot.png     save the next complete video frame (PNG)
 //! ```
 //!
@@ -28,6 +30,7 @@ pub enum Step {
     Buttons(u8),
     Press(u8, u64),
     Screenshot(String),
+    ExpectLeds(u8),
 }
 
 /// Removes ANSI escape sequences (ESC [ ... final byte) from terminal output.
@@ -111,6 +114,8 @@ pub fn parse(text: &str) -> Result<Vec<Step>, String> {
         let step = match cmd {
             "expect" => Step::Expect(String::from_utf8_lossy(&unescape(arg).map_err(err)?).into_owned()),
             "send" => Step::Send(unescape(arg).map_err(err)?),
+            "send-file" => Step::Send(std::fs::read(arg.trim()).map_err(|e| err(format!("{}: {e}", arg.trim())))?),
+            "expect-leds" => Step::ExpectLeds(num(arg.trim()).map_err(err)? as u8),
             "wait" => Step::Wait(num(arg.trim()).map_err(err)?),
             "buttons" => Step::Buttons(num(arg.trim()).map_err(err)? as u8),
             "press" => {
@@ -169,6 +174,19 @@ pub fn run<E: Engine>(
                 }
             }
             Step::Send(bytes) => m.host.uart.send(bytes),
+            Step::ExpectLeds(value) => {
+                let start = m.cycle();
+                while m.last_out.led != *value {
+                    if m.halted() {
+                        return Err(format!("machine halted while expecting LEDs {value:#04x}"));
+                    }
+                    if m.cycle() - start > timeout {
+                        return Err(format!("timed out after {timeout} cycles expecting LEDs {value:#04x}"));
+                    }
+                    let ev = m.step();
+                    on_cycle(m, &ev);
+                }
+            }
             Step::Wait(n) => {
                 for _ in 0..*n {
                     let ev = m.step();
@@ -216,10 +234,16 @@ mod tests {
 
     #[test]
     fn parses_steps() {
-        let s = parse("# c\nexpect strata> \nsend ls\\n\nwait 10\npress 0x10 5\n").unwrap();
+        let s = parse("# c\nexpect strata> \nsend ls\\n\nwait 10\npress 0x10 5\nexpect-leds 0x81\n").unwrap();
         assert_eq!(
             s,
-            vec![Step::Expect("strata> ".into()), Step::Send(b"ls\n".to_vec()), Step::Wait(10), Step::Press(0x10, 5)]
+            vec![
+                Step::Expect("strata> ".into()),
+                Step::Send(b"ls\n".to_vec()),
+                Step::Wait(10),
+                Step::Press(0x10, 5),
+                Step::ExpectLeds(0x81),
+            ]
         );
     }
 }

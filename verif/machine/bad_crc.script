@@ -1,0 +1,7 @@
+# One byte of the kernel in the flash is corrupted: the boot ROM rejects the
+# image, waits for one on the serial line, and boots the good image sent there.
+expect segment CRC mismatch
+expect waiting for an image on the UART\r\n
+send-file $SW/system.img
+expect strata> 
+send halt 8\n

@@ -1,0 +1,35 @@
+
+Strata boot ROM 1.0
+boot: loading from flash
+boot: starting at 0x10000000
+[96mStrata[0m kernel 1.0: 64 KiB RAM, 25 MHz, flash id ef4018
+program store: 5 programs
+Type 'help' for commands.
+[92mstrata[0m> crash 1
+crash: fault 1
+[91m[kernel] crash (pid 2): illegal instruction at pc 0x1000f084 (mtval 0x00000000)[0m
+crash exited with -1
+[92mstrata[0m> crash 2
+crash: fault 2
+[91m[kernel] crash (pid 3): load access fault at pc 0x1000f0b4 (mtval 0x10000000)[0m
+crash exited with -1
+[92mstrata[0m> crash 3
+crash: fault 3
+[91m[kernel] crash (pid 4): store access fault at pc 0x1000f0a0 (mtval 0x10008000)[0m
+crash exited with -1
+[92mstrata[0m> crash 4
+crash: fault 4
+[91m[kernel] crash (pid 5): instruction access fault at pc 0x10000000 (mtval 0x10000000)[0m
+crash exited with -1
+[92mstrata[0m> crash 5
+crash: fault 5
+[91m[kernel] crash (pid 6): store access fault at pc 0x1000f094 (mtval 0x40001000)[0m
+crash exited with -1
+[92mstrata[0m> crash 6
+crash: fault 6
+[91m[kernel] crash (pid 7): instruction access fault at pc 0x1000fff0 (mtval 0x1000fff0)[0m
+crash exited with -1
+[92mstrata[0m> ps
+  pid  state  slot  cycles       name
+    1  ready     0  34974        shell
+[92mstrata[0m> halt 4

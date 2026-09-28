@@ -29,8 +29,13 @@ int main(int kind)
         mmio_write(UART_BASE, UART_DATA, '!');
         break;
     case 6: {
-        uint32_t code[1] = {0x00000013};   /* nop */
-        ((void (*)(void))code)();
+        /* Stored through a volatile pointer so that the words really are on
+           the stack (a constant array would be placed in .rodata, which is
+           executable). */
+        volatile uint32_t code[2];
+        code[0] = 0x00000013;   /* nop */
+        code[1] = 0x00008067;   /* ret */
+        ((void (*)(void))(uintptr_t)code)();
         break;
     }
     default:

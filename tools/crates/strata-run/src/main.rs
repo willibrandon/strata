@@ -20,9 +20,10 @@ const USAGE: &str = "usage: strata-run [options]
                          the RTL; lockstep: both, comparing every output every cycle
   --netlist <json>       gate-level netlist (default build/gate/strata_soc.json)
   --liberty <lib>        cell library (default: $PDK_ROOT/sky130A/.../tt_025C_1v80.lib)
-  --rom <hex|bin>        boot ROM image
+  --rom <hex|bin>        boot ROM image (default build/sw/boot/boot.hex)
   --ram <hex|bin>        preload RAM (test-harness shortcut)
-  --flash <file>         boot image programmed into the flash at 0x200000
+  --flash <file>|none    flash contents from 0x200000 (default build/sw/flash.bin,
+                         unless --ram is given; none: erased flash)
   --uart-in <text>       bytes to type on the terminal (\\n for newline)
   --script <file>        run an expect/send script (see strata-sim script.rs),
                          then continue until halt or --max-cycles
@@ -52,6 +53,7 @@ struct Args {
     rom: Option<PathBuf>,
     ram: Option<PathBuf>,
     flash: Option<PathBuf>,
+    erased_flash: bool,
     uart_in: Option<String>,
     script: Option<PathBuf>,
     uart_div: u32,
@@ -86,6 +88,7 @@ fn parse_args() -> Result<Args, String> {
         rom: None,
         ram: None,
         flash: None,
+        erased_flash: false,
         uart_in: None,
         script: None,
         uart_div: 25,
@@ -115,7 +118,14 @@ fn parse_args() -> Result<Args, String> {
             "--liberty" => a.liberty = val()?.into(),
             "--rom" => a.rom = Some(val()?.into()),
             "--ram" => a.ram = Some(val()?.into()),
-            "--flash" => a.flash = Some(val()?.into()),
+            "--flash" => {
+                let v = val()?;
+                if v == "none" {
+                    a.erased_flash = true;
+                } else {
+                    a.flash = Some(v.into());
+                }
+            }
             "--uart-in" => a.uart_in = Some(val()?.replace("\\n", "\n")),
             "--script" => a.script = Some(val()?.into()),
             "--uart-div" => a.uart_div = parse_num(&val()?)? as u32,
@@ -140,6 +150,14 @@ fn parse_args() -> Result<Args, String> {
             "-h" | "--help" => return Err(USAGE.into()),
             o => return Err(format!("unknown option {o}\n{USAGE}")),
         }
+    }
+    // Default to the software build: boot from the ROM and the flash image.
+    let existing = |p: &str| Some(PathBuf::from(p)).filter(|p| p.exists());
+    if a.rom.is_none() {
+        a.rom = existing("build/sw/boot/boot.hex");
+    }
+    if a.flash.is_none() && a.ram.is_none() && !a.erased_flash {
+        a.flash = existing("build/sw/flash.bin");
     }
     Ok(a)
 }
