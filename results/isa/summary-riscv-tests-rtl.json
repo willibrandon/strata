@@ -1,0 +1,104 @@
+{
+  "category": "simulated",
+  "engine": "rtl",
+  "suite": "riscv-tests",
+  "counts": {
+    "SKIP": 3,
+    "PASS": 13
+  },
+  "results": [
+    {
+      "test": "rv32mi-breakpoint",
+      "status": "SKIP",
+      "reason": "debug triggers (tselect/tdata) are not implemented"
+    },
+    {
+      "test": "rv32mi-csr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.07
+    },
+    {
+      "test": "rv32mi-illegal",
+      "status": "SKIP",
+      "reason": "exercises S-mode (sret, sfence.vma, satp), which S1 does not implement"
+    },
+    {
+      "test": "rv32mi-instret_overflow",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-lh-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-lw-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.07
+    },
+    {
+      "test": "rv32mi-ma_addr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-ma_fetch",
+      "status": "SKIP",
+      "reason": "requires compressed instructions (C extension)"
+    },
+    {
+      "test": "rv32mi-mcsr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-pmpaddr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.07
+    },
+    {
+      "test": "rv32mi-sbreak",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-scall",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.07
+    },
+    {
+      "test": "rv32mi-sh-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-shamt",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-sw-misaligned",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.06
+    },
+    {
+      "test": "rv32mi-zicntr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.03
+    }
+  ]
+}
