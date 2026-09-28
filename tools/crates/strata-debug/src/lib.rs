@@ -7,6 +7,7 @@
 //! netlist cells.
 
 pub mod debuginfo;
+pub mod inspect;
 pub mod probes;
 pub mod session;
 

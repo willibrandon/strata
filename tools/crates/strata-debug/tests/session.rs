@@ -199,3 +199,50 @@ fn stuck_at_on_a_bus_signal() {
     assert!(s.machine.halted() || s.cycle() >= 10_000);
     let _ = Path::new("");
 }
+
+#[test]
+fn inspection_model() {
+    use strata_debug::inspect;
+    let Some(mut s) = session() else { return };
+    s.run(10_000, &mut || false);
+    let end = s.cycle();
+
+    // Hierarchy totals add up to the whole netlist.
+    let mods = inspect::modules(&s.compiled);
+    assert_eq!(mods[0].total_cells, s.compiled.netlist.cells.len());
+    let alu = mods.iter().find(|m| m.path == "u_core.u_alu").unwrap();
+    assert!(alu.total_cells > 100 && alu.total_flops == 0);
+
+    // Every stage has logic; the ALU's cells are execute-stage logic.
+    let stages = inspect::StageMap::build(&s.compiled);
+    for st in 0..5 {
+        assert!(stages.cells_of(st).count() > 50, "stage {} is empty", inspect::STAGES[st]);
+    }
+    let alu_x = alu.cells.iter().filter(|&&c| stages.stages[c as usize] & (1 << 2) != 0).count();
+    assert!(alu_x * 10 >= alu.cells.len() * 9, "ALU cells should be X-stage logic");
+
+    // A register-file flip-flop: its details and its source line.
+    let net = s.probes.regs[8].as_ref().unwrap().bits[0];
+    let cell = inspect::driver_cell(&s.compiled, net).unwrap();
+    let info = inspect::cell_info(&s, cell);
+    assert!(info.sequential && info.module_path == "u_core.u_rf");
+    assert!(info.src.as_deref().is_some_and(|x| x.contains("st_regfile.sv")));
+    assert_eq!(info.state, Some(s.engine().net(net)));
+
+    // Activity: the core is busy while the program runs.
+    let act = inspect::activity(&mut s, 10, end);
+    let core_toggles: u32 = mods.iter().filter(|m| m.path == "u_core.u_alu").flat_map(|m| m.cells.iter()).map(|&c| act.cell(&s.compiled, c)).sum();
+    assert!(core_toggles > 0);
+    assert_eq!(s.cycle(), end, "activity measurement returns to the current cycle");
+
+    // Waveforms by replay match the values seen at each cycle.
+    let pc = s.probes.stages[4].pc.clone();
+    let waves = inspect::capture(&mut s, std::slice::from_ref(&pc), 20, 40);
+    for (k, row) in waves.values.iter().enumerate() {
+        s.goto(20 + k as u64);
+        assert_eq!(row[0], s.value(&pc));
+    }
+    let mut vcd = Vec::new();
+    waves.write_vcd(&mut vcd).unwrap();
+    assert!(String::from_utf8(vcd).unwrap().contains("$enddefinitions"));
+}
