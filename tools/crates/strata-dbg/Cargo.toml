@@ -1,0 +1,26 @@
+[package]
+name = "strata-dbg"
+description = "The Strata debugger: native GUI over a gate-level debug session"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "strata-dbg"
+path = "src/main.rs"
+
+[dependencies]
+strata-debug = { path = "../strata-debug" }
+strata-sim = { path = "../strata-sim" }
+strata-gate = { path = "../strata-gate" }
+strata-netlist = { path = "../strata-netlist" }
+strata-isa = { path = "../strata-isa" }
+eframe = { version = "0.36", default-features = false, features = ["default_fonts", "wgpu", "accesskit"] }
+egui_dock = "0.21"
+egui_extras = "0.36"
+glam = { version = "0.33", features = ["bytemuck"] }
+bytemuck = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+egui_kittest = { version = "0.36", features = ["wgpu", "eframe"] }
+image = { version = "0.25", default-features = false, features = ["png"] }

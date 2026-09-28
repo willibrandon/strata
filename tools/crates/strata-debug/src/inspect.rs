@@ -295,11 +295,18 @@ impl Activity {
 /// current cycle.
 pub fn activity(s: &mut Session, start: u64, end: u64) -> Activity {
     let here = s.cycle();
+    let was_counting = s.engine().toggle_counts().is_some();
+    if !was_counting {
+        s.machine.engine.enable_toggle_counts(true);
+    }
     s.goto(start);
-    s.machine.engine.enable_toggle_counts(true);
+    let before = s.engine().toggle_counts().unwrap().to_vec();
     s.goto(end.max(start));
-    let net_toggles = s.engine().toggle_counts().unwrap().to_vec();
-    s.machine.engine.enable_toggle_counts(false);
+    let after = s.engine().toggle_counts().unwrap();
+    let net_toggles = after.iter().zip(&before).map(|(a, b)| a.wrapping_sub(*b)).collect();
+    if !was_counting {
+        s.machine.engine.enable_toggle_counts(false);
+    }
     s.goto(here);
     Activity { start, end, net_toggles }
 }

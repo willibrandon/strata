@@ -64,6 +64,10 @@ pub struct GateSim {
     force: Vec<u8>,
     toggles: Option<Vec<u32>>,
     changes: Vec<(u32, u8)>,
+    /// Nets that changed since the last clock edge began (see `last_changes`).
+    changed: Vec<NetId>,
+    changed_mark: Vec<u32>,
+    epoch: u32,
     pub mode: EvalMode,
     pub stats: Stats,
     /// Bits of each SOC_INPUTS / SOC_OUTPUTS port, in that order.
@@ -114,6 +118,9 @@ impl GateSim {
             force: vec![0; nnets],
             toggles: None,
             changes: Vec::new(),
+            changed: Vec::new(),
+            changed_mark: vec![0; nnets],
+            epoch: 1,
             mode: EvalMode::Event,
             stats: Stats::default(),
             in_bits,
@@ -173,6 +180,13 @@ impl GateSim {
 
     pub fn values(&self) -> &[u8] {
         &self.val
+    }
+
+    /// Nets whose value changed from the previous cycle's settled state to
+    /// the current one (the effects of the last clock edge, plus anything
+    /// applied since, such as forced nets).
+    pub fn last_changes(&self) -> &[NetId] {
+        &self.changed
     }
 
     /// Starts counting value changes per net (for activity views).
@@ -281,6 +295,10 @@ impl GateSim {
         if self.val[i] != v {
             self.val[i] = v;
             self.stats.net_changes += 1;
+            if self.changed_mark[i] != self.epoch {
+                self.changed_mark[i] = self.epoch;
+                self.changed.push(n);
+            }
             if let Some(t) = &mut self.toggles {
                 t[i] = t[i].wrapping_add(1);
             }
@@ -351,6 +369,8 @@ impl GateSim {
     fn clock_edge(&mut self) {
         let c = Arc::clone(&self.c);
         self.changes.clear();
+        self.changed.clear();
+        self.epoch = self.epoch.wrapping_add(1).max(1);
         let full = self.mode == EvalMode::Full;
         for w in 0..self.active.len() {
             let mut bits = if full { u64::MAX } else { self.active[w] };
