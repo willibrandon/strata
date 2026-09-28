@@ -44,7 +44,9 @@ generates the linker layouts from it.
 
 If the flash holds no valid image, the ROM waits for an image in the same
 format on the UART (resynchronizing on the magic number), which allows
-loading a new kernel without reprogramming the flash. A trap during boot
+loading a new kernel without reprogramming the flash. It prints nothing
+while the image arrives: the UART has 8-byte FIFOs and no flow control, so
+waiting on the transmitter would let received bytes overflow. A trap during boot
 prints `mcause`, `mepc` and `mtval` and halts with code `0x1F`.
 
 ## Kernel

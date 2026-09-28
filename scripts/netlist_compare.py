@@ -112,6 +112,8 @@ NET = rf"({ID})\s*(?:\[(\d+)\])?"
 def parse_verilog(path: Path, directions: dict) -> tuple[dict, dict, dict]:
     text = path.read_text()
     m = re.search(r"\bmodule\s+\S+\s*\((.*?)\);(.*)endmodule", text, re.S)
+    if m is None:
+        raise ValueError(f"{path}: no module definition")
     body = m.group(2)
     widths: dict[str, tuple[str, int]] = {}
     for dm in re.finditer(r"^\s*(input|output)\s+(?:\[(\d+):(\d+)\]\s+)?(\S+);", body, re.M):
@@ -160,6 +162,8 @@ def parse_verilog(path: Path, directions: dict) -> tuple[dict, dict, dict]:
     consts = {}
     for am in re.finditer(r"^\s*assign\s+(.+?)\s*=\s*(.+?);", body, re.M):
         a, b = net(am.group(1)), net(am.group(2))
+        if not isinstance(a, int):
+            continue  # a constant on the left: nothing to join
         if isinstance(b, int):
             parent[find(a)] = find(b)
         else:

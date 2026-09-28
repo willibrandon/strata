@@ -41,8 +41,8 @@ with OpenROAD. The result has no routing design rule violations, meets
 timing at 25 MHz, and is formally equivalent to the simulated netlist.
 
 Transistors. Every cell type in the netlist has been simulated at transistor
-level with ngspice and the foundry models, and behaves as the gate-level
-model assumes.
+level with ngspice and the foundry models, and computes the logic function
+the gate-level model uses for it.
 
 docs/results.md lists every result and says which of them come from
 simulation, which from implementation tools, and which from hardware.
