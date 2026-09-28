@@ -1,0 +1,11 @@
+--target=riscv32-unknown-elf
+-march=rv32i_zicsr_zifencei
+-mabi=ilp32
+-ffreestanding
+-fno-builtin
+-nostdlib
+-std=gnu11
+-Wall
+-Wextra
+-Iinclude
+-Ikernel
