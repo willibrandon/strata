@@ -7,6 +7,7 @@
 //   +flash=<hex>      SPI flash contents (bytes) at +flash_offset (default 0x200000)
 //   +uart_div=<n>     UART bit period used to decode TX (default 25)
 //   +uart_in=<text>   bytes to send to the UART RX pin after reset (\n allowed)
+//   +uart_delay=<n>   cycles to wait before sending them (default 2000)
 //   +timeout=<n>      cycle limit (default 2,000,000)
 //   +trace=<file>     write the retirement trace
 //   +vcd=<file>       dump waveforms
@@ -69,8 +70,10 @@ module tb_machine;
   endtask
 
   initial begin
+    int uart_delay;
+    if (!$value$plusargs("uart_delay=%d", uart_delay)) uart_delay = 2000;
     if ($value$plusargs("uart_in=%s", uart_in)) begin
-      repeat (2000) @(posedge clk);
+      repeat (uart_delay) @(posedge clk);
       for (int i = 0; i < uart_in.len(); i++) begin
         if (uart_in[i] == "\\" && i + 1 < uart_in.len() && uart_in[i+1] == "n") begin
           send_byte(8'h0A); i++;
