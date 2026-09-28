@@ -621,6 +621,7 @@ impl App {
                     ui.selectable_value(&mut self.trigger_kind, i, *k);
                 }
             });
+            let label = ui.label("stop at:");
             ui.add(egui::TextEdit::singleline(&mut self.trigger_text).desired_width(220.0).hint_text(match self.trigger_kind {
                 0 => "main, 0x10000044",
                 1 => "0x20000000..0x20002000",
@@ -629,7 +630,8 @@ impl App {
                 4 => "cause number, or empty for any",
                 5 => "text",
                 _ => "cycle",
-            }));
+            }))
+            .labelled_by(label.id);
             if ui.button("Add").clicked() {
                 self.add_trigger();
             }
@@ -791,15 +793,17 @@ impl App {
 
     fn inspector_panel(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.label("net:");
-            let r = ui.add(egui::TextEdit::singleline(&mut self.net_search).hint_text("u_core.x_pc[3]"));
+            let label = ui.label("find:");
+            let r = ui.add(egui::TextEdit::singleline(&mut self.net_search).hint_text("cell u_core._c713_ or net u_core.x_pc[3]")).labelled_by(label.id);
             if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                match self.st.compiled.netlist.net_by_name(self.net_search.trim()) {
-                    Some(n) => {
-                        self.sel.net = Some(n);
-                        self.sel.cell = inspect::driver_cell(&self.st.compiled, n);
-                    }
-                    None => self.status_line = format!("no net named {}", self.net_search.trim()),
+                let name = self.net_search.trim().to_string();
+                if let Some(&cell) = inspect::cell_index(&self.st.compiled).get(name.as_str()) {
+                    self.sel.select_cell(&self.st.compiled, cell);
+                } else if let Some(n) = self.st.compiled.netlist.net_by_name(&name) {
+                    self.sel.net = Some(n);
+                    self.sel.cell = inspect::driver_cell(&self.st.compiled, n);
+                } else {
+                    self.status_line = format!("no cell or net named {name}");
                 }
             }
         });
@@ -884,7 +888,7 @@ impl App {
                 ui.label(RichText::new(&m.path).monospace().strong());
                 ui.label(format!("module {}: {} cells ({} own), {} flip-flops, {:.0} µm²", m.module, m.total_cells, m.cells.len(), m.total_flops, m.total_area));
             } else {
-                ui.label("Select a cell in the 3D view, a module in the hierarchy, or search for a net.");
+                ui.label("Select a cell in the 3D view or the layout, a module in the hierarchy, or type a cell or net name above and press Enter.");
             }
         });
     }
@@ -1046,7 +1050,7 @@ impl TabViewer for Viewer<'_> {
             Tab::Inspector => a.inspector_panel(ui),
             Tab::Layout => {
                 let st = Arc::clone(&a.st);
-                a.layout_view.ui(ui, &st, &a.scene, &a.view, &mut a.sel);
+                a.layout_view.ui(ui, &st, &mut a.scene, &a.view, &mut a.sel);
             }
             Tab::Transistors => {
                 let st = Arc::clone(&a.st);

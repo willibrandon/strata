@@ -117,7 +117,7 @@ hierarchy is the cell in the inspector and the transistor view.
 
 ### 3D
 
-![The 3D view: cells placed by module, the pipeline plates with the instruction in each stage, and the source line of the code in flight](images/debugger-3d.png)
+![The 3D view: cells placed by module, the pipeline plates with the instruction in each stage, and the source line of the code in flight](images/guide-2-breakpoint.jpg)
 
 The 3D view is built from the inspection model. Every object in it is an
 entity of the model, and selecting it selects that entity:
@@ -148,7 +148,7 @@ of, for example, the game's main loop.
 
 ### Layout
 
-![The layout tab: every cell of the routed layout colored by RTL module, and the routed nets of a selected adder cell with their lengths and extracted capacitance](images/debugger-layout.png)
+![The layout tab: every cell of the routed layout colored by RTL module, and the routed nets of a selected adder cell with their lengths and extracted capacitance](images/guide-4-layout.jpg)
 
 The layout tab draws the placed and routed design from above, from the
 OpenROAD output (`build/physical`, see [physical.md](physical.md)):
@@ -160,7 +160,7 @@ capacitance. Clicking a cell selects it everywhere.
 
 ### Transistors
 
-![The transistor tab for a maj3_1 carry cell of the adder: its stages, the conducting transistors in this cycle, and the ngspice simulation of its transition next to the Liberty prediction; the 3D view shows the physical placement with the cell's routed wires](images/debugger-transistors.png)
+![The transistor tab for a maj3_1 carry cell of the adder: its stages, the conducting transistors in this cycle, and the ngspice simulation of its transition next to the Liberty prediction, with the cell's place in the layout in the middle](images/guide-5-transistors.jpg)
 
 The transistor tab shows the selected cell's transistor netlist from the PDK.
 Each stage is drawn as its pull-up network (pfet) above the output node and
@@ -195,7 +195,12 @@ its pull-down network (nfet) below it.
 
 ## Headless use
 
-The debugger renders offscreen for documentation and tests:
+`--tour <dir>` performs the steps of [guide.md](guide.md#4-use-the-debugger)
+through the interface itself (typing a breakpoint, Run, finding a cell,
+opening the layout and transistor views, simulating) and saves a screenshot
+of each step; the pictures in the guide are made this way.
+
+The debugger also renders single views offscreen:
 
 ```
 strata-dbg --screenshot out.png [--size 1600x1000] [--goto <cycle>] [--break <symbol>]

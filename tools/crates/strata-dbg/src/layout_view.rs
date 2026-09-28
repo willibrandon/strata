@@ -7,7 +7,7 @@ use glam::Vec2;
 
 use crate::app::Statics;
 use crate::physical::Physical;
-use crate::scene_view::{SceneView, LAYER_COLORS};
+use crate::scene_view::{ColorBy, SceneView, LAYER_COLORS};
 use crate::view::View;
 use crate::Selection;
 
@@ -68,7 +68,7 @@ impl LayoutView {
         (p.x as f64 <= c.x + c.w && p.y as f64 <= c.y + c.h).then_some(k)
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui, st: &Statics, scene: &SceneView, view: &View, sel: &mut Selection) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, st: &Statics, scene: &mut SceneView, view: &View, sel: &mut Selection) {
         let Some(ph) = st.physical.as_deref() else {
             ui.label("No layout loaded. Run scripts/physical.py (OpenROAD place and route of the gate netlist), then restart the debugger, or pass --layout <dir>.");
             return;
@@ -77,7 +77,14 @@ impl LayoutView {
             self.index(ph);
         }
         let l = &ph.layout;
-        ui.horizontal(|ui| {
+        // Wrapped, so a narrow panel does not widen the drawing area.
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Color:");
+            ui.selectable_value(&mut scene.color_by, ColorBy::Stage, "pipeline stage");
+            ui.selectable_value(&mut scene.color_by, ColorBy::Module, "module");
+            ui.selectable_value(&mut scene.color_by, ColorBy::Activity, "activity");
+            ui.selectable_value(&mut scene.color_by, ColorBy::Value, "value");
+            ui.separator();
             if ui.button("fit").clicked() {
                 self.fitted = false;
             }

@@ -65,7 +65,9 @@ Headless screenshots (no window):
   --physical           3D view with the physical placement
   --tab <name>         bring a tab to the front (layout, transistors, ...)
   --simulate           run the transistor-level simulation of the selected cell
-  --focus              zoom the 3D and layout views to the selected cell";
+  --focus              zoom the 3D and layout views to the selected cell
+  --tour <dir>         click through the steps of docs/guide.md in the interface
+                       (headless) and save a screenshot of each step in <dir>";
 
 fn default_liberty() -> PathBuf {
     pdk_root().join("sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib")
@@ -84,6 +86,7 @@ struct Shot {
     tabs: Vec<String>,
     simulate: bool,
     focus: bool,
+    tour: Option<PathBuf>,
 }
 
 fn pdk_root() -> PathBuf {
@@ -150,6 +153,7 @@ fn parse_args() -> Result<Args, String> {
             "--tab" => shot.tabs.push(val()?),
             "--simulate" => shot.simulate = true,
             "--focus" => shot.focus = true,
+            "--tour" => shot.tour = Some(val()?.into()),
             "--layout" => {
                 let v = val()?;
                 layout = (v != "none").then(|| PathBuf::from(v));
@@ -244,6 +248,10 @@ fn main() {
     });
     let statics = Arc::new(app::Statics { compiled, mods, stages, source_files, physical });
 
+    if let Some(dir) = shot.tour.clone() {
+        tour(session, statics, scene, &dir);
+        return;
+    }
     if let Some(path) = shot.path.clone() {
         screenshot(session, statics, scene, &shot, &path);
         return;
@@ -359,6 +367,93 @@ fn screenshot(mut session: Session, statics: Arc<app::Statics>, mut scene: scene
         },
         Err(e) => eprintln!("strata-dbg: render failed: {e}"),
     }
+}
+
+/// Performs the debugger steps of docs/guide.md through the interface itself
+/// (clicks and typing, headless) and saves a screenshot after each step.
+fn tour(session: Session, statics: Arc<app::Statics>, scene: scene_view::SceneView, dir: &std::path::Path) {
+    use egui_kittest::kittest::{NodeT, Queryable};
+    let _ = std::fs::create_dir_all(dir);
+    let st = Arc::clone(&statics);
+    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1600.0, 1000.0)).wgpu().build_eframe(move |cc| {
+        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        let worker = worker::Worker::start(session, Box::new(|| {}));
+        Main { app: app::App::new(worker, st, scene) }
+    });
+    let shoot = |h: &mut egui_kittest::Harness<Main>, name: &str| {
+        h.run_steps(4);
+        match h.render() {
+            Ok(img) => {
+                let p = dir.join(format!("{name}.png"));
+                let _ = img.save(&p);
+                eprintln!("strata-dbg: tour: {}", p.display());
+            }
+            Err(e) => eprintln!("strata-dbg: tour: render failed: {e}"),
+        }
+    };
+    let wait = |h: &mut egui_kittest::Harness<Main>, what: &str, done: &dyn Fn(&Main) -> bool| {
+        for _ in 0..6000 {
+            h.run_steps(1);
+            if done(h.state()) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        eprintln!("strata-dbg: tour: gave up waiting for {what}");
+    };
+    h.run_steps(4);
+    shoot(&mut h, "1-start");
+    // A breakpoint on the kernel's console_putc, then Run.
+    h.state_mut().app.focus_tab(app::Tab::Triggers); // a click on the tab title
+    h.run_steps(2);
+    h.get_by_label("stop at:").click();
+    h.run_steps(1);
+    h.get_by_label("stop at:").type_text("console_putc");
+    h.run_steps(1);
+    h.get_by_label("Add").click();
+    h.run_steps(3);
+    h.get_by_label("Run").click();
+    h.run_steps(3);
+    wait(&mut h, "the breakpoint", &|m| !m.app.worker.status.lock().unwrap().running && m.app.view.cycle > 0);
+    shoot(&mut h, "2-breakpoint");
+    // Select the adder cell by name in the inspector.
+    h.state_mut().app.focus_tab(app::Tab::Inspector); // a click on the tab title
+    h.run_steps(2);
+    h.get_by_label("find:").click();
+    h.run_steps(1);
+    h.get_by_label("find:").type_text("u_core._c713_");
+    h.run_steps(1);
+    h.key_press(egui::Key::Enter);
+    h.run_steps(3);
+    shoot(&mut h, "3-inspector");
+    // The layout, colored by module.
+    if statics.physical.is_some() {
+        h.state_mut().app.focus_tab(app::Tab::Layout); // a click on the tab title
+        h.run_steps(2);
+        // The color button (the inspector also shows a "module" row).
+        let button = h.get_all_by_label("module").find(|n| n.accesskit_node().role() != egui::accesskit::Role::Label);
+        if let Some(b) = button {
+            b.click();
+        }
+        h.run_steps(3);
+        shoot(&mut h, "4-layout");
+    }
+    // The cell at transistor level, and its simulation.
+    h.state_mut().app.focus_tab(app::Tab::Transistors); // a click on the tab title
+    h.run_steps(2);
+    wait(&mut h, "the transistor data", &|m| !m.app.transistors.busy());
+    h.get_by_label("simulate").click();
+    h.run_steps(2);
+    wait(&mut h, "the simulation", &|m| !m.app.transistors.busy());
+    shoot(&mut h, "5-transistors");
+    // The 3D view with the physical placement.
+    h.state_mut().app.focus_tab(app::Tab::Scene); // a click on the tab title
+    h.run_steps(2);
+    if statics.physical.is_some() {
+        h.get_by_label("physical placement").click();
+        h.run_steps(3);
+    }
+    shoot(&mut h, "6-3d");
 }
 
 impl eframe::App for Main {

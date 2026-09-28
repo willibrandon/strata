@@ -59,38 +59,31 @@ simulation, which from implementation tools, and which from hardware.
     docs/       design documents
     results/    recorded results
 
-## Getting started
+## How to use it
 
-docs/setup.md lists the tools and versions. With them installed:
+docs/guide.md explains how to use everything, step by step: the computer
+from a terminal, the game, and the debugger, including how to get to each of
+the views shown in docs/images. In short:
+
+Build once (docs/setup.md lists the tools to install first):
 
     scripts/fetch_third_party.sh
     cargo build --release --manifest-path tools/Cargo.toml
     make -C sw
     python3 scripts/synth_gate.py
 
-Run the machine with your terminal as its serial console, and type into its
-shell:
-
-    tools/target/release/strata-run --interactive
-
-This uses the gate-level model, which simulates every cell, so the boot
-takes about a minute before the strata> prompt appears. Type help for the
-commands. Ctrl-C or Ctrl-] quits. The RTL model boots in under a second:
+Use the computer from your terminal. Type help at the strata> prompt.
+Ctrl-C stops a program, Ctrl-T shows the video screen, Ctrl-] quits:
 
     tools/target/release/strata-run --engine rtl --interactive
 
-Time inside the machine is simulated time. On the RTL model the machine runs
-about 8 times slower than real hardware would, and on the gate-level model
-several hundred times slower, so a command like sleep 1000 takes a while.
-The game draws on the video output, which a terminal cannot show. The
-debugger shows it in its Display tab.
+Play the game: start on the video screen, then type blocks. Arrow keys move
+and rotate, space drops, q quits:
 
-To send a fixed list of commands and exit, for scripts and tests, use
---uart-in instead. Each line is typed after the machine prints a prompt:
+    tools/target/release/strata-run --engine rtl --screen
 
-    tools/target/release/strata-run --engine rtl --uart-in 'blocks 20\nhalt 0\n'
-
-Open the debugger:
+Open the debugger, which shows the hardware running the software, from the
+source code down to the logic cells, the chip layout and the transistors:
 
     tools/target/release/strata-dbg
 
@@ -116,6 +109,7 @@ docs/fpga.md explains how to program a board and what to expect from it.
 
 ## Documentation
 
+    docs/guide.md               how to use everything, step by step
     docs/design.md              requirements, architecture, and where each part is
     docs/isa.md                 the instruction set and privileged architecture
     docs/microarchitecture.md   the pipeline

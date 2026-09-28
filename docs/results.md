@@ -22,7 +22,7 @@ result file in `results/` states its category:
 | riscv-formal checks of the core | 44 of 44 pass (depth 12) | `results/formal/summary.json` | [verification.md](verification.md#formal-checks) |
 | RTL-to-netlist equivalence | 21 of 21 modules, 10,211 points proven | `results/equiv/summary.json` | [verification.md](verification.md#formal-equivalence) |
 | Four-state simulation (Icarus Verilog) | 60 pass (ISA tests and a boot to the shell), no X | `results/four_state/summary.json` | [verification.md](verification.md#four-state-simulation) |
-| Whole-machine sessions | 11 of 11 pass; the 10.76 million cycle shell tour with RTL and gate identical in every cycle | `results/machine/summary.json` | [verification.md](verification.md#whole-machine-tests) |
+| Whole-machine sessions | 12 of 12 pass; the 10.82 million cycle shell tour with RTL and gate identical in every cycle | `results/machine/summary.json` | [verification.md](verification.md#whole-machine-tests) |
 | FPGA top with DVI receiver | 2,491,345 TMDS symbols match; decoded frame identical to RTL and gate models | `results/fpga/board_sim.json` | [fpga.md](fpga.md#simulated-results) |
 | Transistor-level logic of every cell type | 76 cell types, 1,356 output samples, no mismatch with Liberty functions | `results/transistor/verify.json` | [physical.md](physical.md#transistor-level-analysis) |
 | Transistor-level timing of the most used cells | 432 arcs: delay 18% below Liberty on average (schematic netlists without parasitics) | `results/transistor/characterize.json` | [physical.md](physical.md#timing-compared-with-liberty) |
