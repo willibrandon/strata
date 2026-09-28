@@ -39,8 +39,11 @@ dual-port synchronous SRAM macros outside the netlist. The host implements
 them with exactly the semantics of `rtl/mem/st_sram_dp.sv` (one-cycle read
 latency, byte write enables, read-before-write, held read data when not
 enabled, port B wins a same-byte write collision). The same Verilog module is
-the memory in RTL simulation and is mapped to block RAM by FPGA synthesis; an
-ASIC would use SRAM macros with this interface.
+the memory in RTL simulation and is mapped to block RAM by FPGA synthesis
+(where one case, a read on one port of the word being written through the
+other port in the same cycle, is left undefined; see
+[fpga.md](fpga.md#memories)); an ASIC would use SRAM macros with this
+interface.
 
 Loading a program image into the ROM or RAM model is the equivalent of
 initializing block RAM in an FPGA bitstream. `--ram` preloading is a test

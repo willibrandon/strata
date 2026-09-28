@@ -31,6 +31,8 @@ const USAGE: &str = "usage: strata-run [options]
   --max-cycles <n>       stop after n cycles (default 10000000)
   --trace <file>         write the retirement trace
   --screenshot <file>    save the last complete video frame (.png or .ppm)
+  --frame <n>            stop when video frame n is complete (with --screenshot,
+                         saves exactly that frame)
   --eval event|full      combinational evaluation strategy (default event)
   --power-on zero|<seed> initial flip-flop contents (default zero)
   --expect-halt <code>   exit status 0 only if the machine halts with this code
@@ -57,6 +59,7 @@ struct Args {
     max_cycles: u64,
     trace: Option<PathBuf>,
     screenshot: Option<PathBuf>,
+    frame: Option<u64>,
     eval: EvalMode,
     power_on: PowerOn,
     expect_halt: Option<u8>,
@@ -90,6 +93,7 @@ fn parse_args() -> Result<Args, String> {
         max_cycles: 10_000_000,
         trace: None,
         screenshot: None,
+        frame: None,
         eval: EvalMode::Event,
         power_on: PowerOn::Zero,
         expect_halt: None,
@@ -119,6 +123,7 @@ fn parse_args() -> Result<Args, String> {
             "--max-cycles" => a.max_cycles = parse_num(&val()?)?,
             "--trace" => a.trace = Some(val()?.into()),
             "--screenshot" => a.screenshot = Some(val()?.into()),
+            "--frame" => a.frame = Some(parse_num(&val()?)?),
             "--eval" => {
                 a.eval = match val()?.as_str() {
                     "event" => EvalMode::Event,
@@ -255,8 +260,19 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
         strata_sim::script::run(&mut m, &steps, args.max_cycles, |_, ev| observe(ev))
             .map_err(|e| format!("script: {e}"))?;
     }
-    let remaining = args.max_cycles.saturating_sub(m.cycle());
-    let halted = m.halted() || m.run(remaining, &mut observe);
+    let halted = match args.frame {
+        Some(n) => {
+            let mut halted = m.halted();
+            while !halted && m.host.display.frames < n && m.cycle() < args.max_cycles {
+                halted = m.run(1, &mut observe);
+            }
+            halted
+        }
+        None => {
+            let remaining = args.max_cycles.saturating_sub(m.cycle());
+            m.halted() || m.run(remaining, &mut observe)
+        }
+    };
     let elapsed = t1.elapsed();
     if halted {
         let before = m.host.uart.received.len();
@@ -272,9 +288,11 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
         cycles as f64 / elapsed.as_secs_f64(),
     );
     if let Some(p) = &args.screenshot {
-        // Show everything drawn so far: finish the frame in progress, then a full one.
-        m.run_until_frame(1_000_000);
-        m.run_until_frame(1_000_000);
+        if args.frame.is_none() {
+            // Show everything drawn so far: finish the frame in progress, then a full one.
+            m.run_until_frame(1_000_000);
+            m.run_until_frame(1_000_000);
+        }
         let data = if p.extension().is_some_and(|e| e == "png") { m.host.display.png() } else { m.host.display.ppm() };
         std::fs::write(p, data).map_err(|e| e.to_string())?;
         eprintln!("[strata-run] wrote frame {} to {}", m.host.display.frames, p.display());

@@ -1,0 +1,18 @@
+{
+  "category": "simulated",
+  "note": "ULX3S top (PLL and DDR output models from verif/fpga/ecp5_models.sv) under Verilator; HDMI decoded by the testbench's DVI receiver.",
+  "frame": 6,
+  "tmds_words_checked": 2491345,
+  "tmds_mismatches": 0,
+  "max_data_disparity": 10,
+  "cycles_after_reset": 2492008,
+  "frame_pixels_differing": {
+    "rtl": 0,
+    "gate": 0
+  },
+  "passed": true,
+  "seconds": {
+    "build": 2.0,
+    "simulation": 7.6
+  }
+}

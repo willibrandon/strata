@@ -1,0 +1,77 @@
+{
+  "category": "implementation-tool",
+  "note": "Reported by yosys and nextpnr-ecp5; not measured on hardware.",
+  "board": "ULX3S",
+  "device": "LFE5U-25KF",
+  "package": "CABGA381",
+  "speed": 6,
+  "seed": 1,
+  "clocks": {
+    "$glbnet$clk": {
+      "achieved_mhz": 28.99,
+      "constraint_mhz": 25,
+      "met": true,
+      "domain": "clk"
+    },
+    "$glbnet$u_hdmi.clk_bit": {
+      "achieved_mhz": 300.48,
+      "constraint_mhz": 125,
+      "met": true,
+      "domain": "clk_bit"
+    }
+  },
+  "utilization": {
+    "DCCA": {
+      "used": 2,
+      "available": 56
+    },
+    "DP16KD": {
+      "used": 40,
+      "available": 56
+    },
+    "EHXPLLL": {
+      "used": 1,
+      "available": 2
+    },
+    "SIOLOGIC": {
+      "used": 4,
+      "available": 69
+    },
+    "TRELLIS_COMB": {
+      "used": 10638,
+      "available": 24288
+    },
+    "TRELLIS_FF": {
+      "used": 3102,
+      "available": 24288
+    },
+    "TRELLIS_IO": {
+      "used": 28,
+      "available": 197
+    },
+    "TRELLIS_RAMW": {
+      "used": 4,
+      "available": 3036
+    },
+    "USRMCLK": {
+      "used": 1,
+      "available": 1
+    }
+  },
+  "synth_cells": {
+    "CCU2C": 575,
+    "DP16KD": 40,
+    "EHXPLLL": 1,
+    "LUT4": 9260,
+    "ODDRX1F": 4,
+    "TRELLIS_DPR16X4": 4,
+    "TRELLIS_FF": 3102,
+    "USRMCLK": 1
+  },
+  "bitstream": "build/fpga/strata_ulx3s_25k.bit",
+  "warnings": [],
+  "seconds": {
+    "synthesis": 7.4,
+    "place_and_route": 34.3
+  }
+}
