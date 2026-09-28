@@ -1,0 +1,13 @@
+[package]
+name = "strata-rtl"
+description = "RTL-mode engine: a Verilator model of strata_soc behind the strata-sim Engine interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+strata-sim = { path = "../strata-sim" }
+
+[build-dependencies]
+cc = "1"

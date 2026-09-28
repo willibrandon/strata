@@ -7,12 +7,14 @@
 
 pub mod devices;
 pub mod engine;
+pub mod lockstep;
 pub mod machine;
 pub mod mem;
 pub mod ports;
 pub mod retire;
 
 pub use engine::Engine;
+pub use lockstep::{Lockstep, Mismatch};
 pub use machine::{Machine, MachineConfig, StepEvents};
 pub use mem::{MemAccess, Memories, Sram};
 pub use ports::{MemPort, SocIn, SocOut, TracePort};

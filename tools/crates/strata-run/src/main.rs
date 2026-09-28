@@ -10,10 +10,14 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 use strata_gate::{EvalMode, GateSim, PowerOn};
+use strata_rtl::RtlSim;
 use strata_sim::machine::FLASH_IMAGE_OFFSET;
-use strata_sim::{Engine, Machine, MachineConfig};
+use strata_sim::{Engine, Lockstep, Machine, MachineConfig};
 
 const USAGE: &str = "usage: strata-run [options]
+  --engine gate|rtl|lockstep
+                         gate: sky130 netlist (default); rtl: Verilator model of
+                         the RTL; lockstep: both, comparing every output every cycle
   --netlist <json>       gate-level netlist (default build/gate/strata_soc.json)
   --liberty <lib>        cell library (default: $PDK_ROOT/sky130A/.../tt_025C_1v80.lib)
   --rom <hex|bin>        boot ROM image
@@ -30,7 +34,15 @@ const USAGE: &str = "usage: strata-run [options]
   --expect-halt <code>   exit status 0 only if the machine halts with this code
   --quiet                do not echo UART output";
 
+#[derive(Clone, Copy, PartialEq)]
+enum EngineKind {
+    Gate,
+    Rtl,
+    Lockstep,
+}
+
 struct Args {
+    engine: EngineKind,
     netlist: PathBuf,
     liberty: PathBuf,
     rom: Option<PathBuf>,
@@ -62,6 +74,7 @@ fn parse_num(s: &str) -> Result<u64, String> {
 
 fn parse_args() -> Result<Args, String> {
     let mut a = Args {
+        engine: EngineKind::Gate,
         netlist: PathBuf::from("build/gate/strata_soc.json"),
         liberty: default_liberty(),
         rom: None,
@@ -82,6 +95,14 @@ fn parse_args() -> Result<Args, String> {
     while let Some(arg) = it.next() {
         let mut val = || it.next().ok_or_else(|| format!("{arg} needs a value"));
         match arg.as_str() {
+            "--engine" => {
+                a.engine = match val()?.as_str() {
+                    "gate" => EngineKind::Gate,
+                    "rtl" => EngineKind::Rtl,
+                    "lockstep" => EngineKind::Lockstep,
+                    o => return Err(format!("bad --engine {o}")),
+                }
+            }
             "--netlist" => a.netlist = val()?.into(),
             "--liberty" => a.liberty = val()?.into(),
             "--rom" => a.rom = Some(val()?.into()),
@@ -132,14 +153,59 @@ fn read_image(path: &Path) -> Result<Vec<u8>, String> {
     }
 }
 
-fn run() -> Result<ExitCode, String> {
-    let args = parse_args()?;
+/// Engine-specific report printed after the run.
+trait Report {
+    fn report(&self) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+impl Report for GateSim {
+    fn report(&self) -> Result<(), String> {
+        let s = &self.stats;
+        eprintln!("[strata-run] gate: {:.0} node evaluations per cycle", s.node_evals as f64 / s.cycles.max(1) as f64);
+        Ok(())
+    }
+}
+
+impl Report for RtlSim {}
+
+impl Report for Lockstep<RtlSim, GateSim> {
+    fn report(&self) -> Result<(), String> {
+        match &self.mismatch {
+            None => {
+                eprintln!("[strata-run] lockstep: RTL and gate outputs identical for all {} cycles", self.cycle);
+                Ok(())
+            }
+            Some(m) => Err(format!("lockstep mismatch\n{}", m.describe())),
+        }
+    }
+}
+
+fn gate_engine(args: &Args) -> Result<GateSim, String> {
     let t0 = Instant::now();
     let compiled = strata_gate::load(&args.netlist, &args.liberty, "strata_soc")?;
     let mut engine = GateSim::new(compiled, args.power_on)?;
     engine.mode = args.eval;
-    eprintln!("[strata-run] {} (loaded in {:.2?})", engine.describe(), t0.elapsed());
+    eprintln!("[strata-run] loaded netlist in {:.2?}", t0.elapsed());
+    Ok(engine)
+}
 
+fn run() -> Result<ExitCode, String> {
+    let args = parse_args()?;
+    match args.engine {
+        EngineKind::Gate => simulate(gate_engine(&args)?, &args),
+        EngineKind::Rtl => simulate(RtlSim::new()?, &args),
+        EngineKind::Lockstep => {
+            let config = MachineConfig::default();
+            let skip = config.reset_cycles + strata_sim::machine::RESET_LATENCY;
+            simulate(Lockstep::new(RtlSim::new()?, gate_engine(&args)?, skip), &args)
+        }
+    }
+}
+
+fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, String> {
+    eprintln!("[strata-run] {}", engine.describe());
     let config = MachineConfig { uart_div: args.uart_div, ..Default::default() };
     let mut m = Machine::new(engine, config);
     if let Some(p) = &args.rom {
@@ -187,17 +253,16 @@ fn run() -> Result<ExitCode, String> {
         }
     }
     let cycles = m.cycle();
-    let s = &m.engine.stats;
     eprintln!(
-        "[strata-run] {} after {cycles} cycles, {retired} instructions retired; {:.0} cycles/s, {:.0} node evals/cycle",
+        "[strata-run] {} after {cycles} cycles, {retired} instructions retired, {:.0} cycles/s",
         if halted { format!("halted with code {}", m.last_out.halt_code) } else { "stopped".into() },
         cycles as f64 / elapsed.as_secs_f64(),
-        s.node_evals as f64 / s.cycles.max(1) as f64,
     );
     if let Some(p) = &args.screenshot {
         std::fs::write(p, m.host.display.ppm()).map_err(|e| e.to_string())?;
         eprintln!("[strata-run] wrote frame {} to {}", m.host.display.frames, p.display());
     }
+    m.engine.report()?;
     Ok(match args.expect_halt {
         Some(code) if !(halted && m.last_out.halt_code == code) => ExitCode::FAILURE,
         _ => ExitCode::SUCCESS,

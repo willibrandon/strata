@@ -13,3 +13,4 @@ path = "src/main.rs"
 strata-netlist = { path = "../strata-netlist" }
 strata-sim = { path = "../strata-sim" }
 strata-gate = { path = "../strata-gate" }
+strata-rtl = { path = "../strata-rtl" }

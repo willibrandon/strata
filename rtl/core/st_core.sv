@@ -74,7 +74,10 @@ module st_core
   output logic [3:0]  rvfi_mem_rmask,
   output logic [3:0]  rvfi_mem_wmask,
   output logic [31:0] rvfi_mem_rdata,
-  output logic [31:0] rvfi_mem_wdata
+  output logic [31:0] rvfi_mem_wdata,
+  // Privilege state for formal environment constraints.
+  output logic [1:0]  fv_data_mode,   // effective privilege of loads and stores
+  output logic        fv_pmp_locked   // some PMP entry is locked
 `endif
 );
 
@@ -575,6 +578,8 @@ module st_core
   assign rvfi_mem_wmask = (w_mem_ok && w_ctrl.is_store) ? w_be : 4'b0;
   assign rvfi_mem_rdata = dbus_rsp_rdata;
   assign rvfi_mem_wdata = w_mem_wdata;
+  assign fv_data_mode   = eff_mode;
+  assign fv_pmp_locked  = pmp_cfg[7] | pmp_cfg[15] | pmp_cfg[23] | pmp_cfg[31];
 `endif
 
 endmodule
