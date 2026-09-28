@@ -1,7 +1,7 @@
 //! Host-side models of the devices attached to the machine's pins. Each one
 //! sees only pin values, cycle by cycle, like the real part on a board.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
@@ -244,6 +244,18 @@ impl SpiFlash {
 
 pub const VIDEO_W: usize = 640;
 pub const VIDEO_H: usize = 480;
+pub const TEXT_COLS: usize = 80;
+pub const TEXT_ROWS: usize = 30;
+
+/// One character cell of the text screen, read back from the video output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextCell {
+    /// Code point (CP437 graphics above 0x7F and below 0x20).
+    pub ch: u8,
+    /// Colors as captured (RGB444).
+    pub fg: u16,
+    pub bg: u16,
+}
 
 /// A display that captures pixels from the video pins, positioning them by
 /// the sync and display-enable signals only.
@@ -349,6 +361,62 @@ impl Display {
         self.last_de = de;
         self.last_vs = vs;
         done
+    }
+
+    /// Reads the last complete frame back as the 80x30 text screen it shows,
+    /// the way a person would: each 8x16 cell's pixels are matched against the
+    /// glyphs of `font` (the font RAM contents, 16 bytes per code point, bit 7
+    /// leftmost). Cells that match no glyph exactly get the nearest one.
+    pub fn text_cells(&self, font: &[u32]) -> Vec<TextCell> {
+        let glyph = |g: usize| -> [u8; 16] {
+            let mut rows = [0u8; 16];
+            for (r, row) in rows.iter_mut().enumerate() {
+                let byte = g * 16 + r;
+                *row = (font.get(byte / 4).copied().unwrap_or(0) >> (8 * (byte % 4))) as u8;
+            }
+            rows
+        };
+        // Prefer printable code points when several glyphs look the same.
+        let order = (0x20..0x7F).chain(0x80..0x100).chain(0..0x20).chain([0x7F]);
+        let mut table: HashMap<[u8; 16], u8> = HashMap::new();
+        let mut glyphs = Vec::with_capacity(256);
+        for g in order {
+            let rows = glyph(g);
+            table.entry(rows).or_insert(g as u8);
+            glyphs.push((g as u8, rows));
+        }
+        let mut out = Vec::with_capacity(TEXT_COLS * TEXT_ROWS);
+        for row in 0..TEXT_ROWS {
+            for col in 0..TEXT_COLS {
+                let px = |x: usize, y: usize| self.frame[(row * 16 + y) * VIDEO_W + col * 8 + x];
+                let a = px(0, 0);
+                let b = (0..16).flat_map(|y| (0..8).map(move |x| (x, y))).map(|(x, y)| px(x, y)).find(|&c| c != a).unwrap_or(a);
+                let mut bits = [0u8; 16];
+                for (y, r) in bits.iter_mut().enumerate() {
+                    for x in 0..8 {
+                        if px(x, y) == b && b != a {
+                            *r |= 0x80 >> x;
+                        }
+                    }
+                }
+                let inv = bits.map(|r| !r);
+                let cell = if let Some(&g) = table.get(&bits) {
+                    TextCell { ch: g, fg: b, bg: a }
+                } else if let Some(&g) = table.get(&inv) {
+                    TextCell { ch: g, fg: a, bg: b }
+                } else {
+                    let dist = |x: &[u8; 16], y: &[u8; 16]| x.iter().zip(y).map(|(p, q)| (p ^ q).count_ones()).sum::<u32>();
+                    let (g, rows) = glyphs.iter().min_by_key(|(_, r)| dist(r, &bits).min(dist(r, &inv))).unwrap();
+                    if dist(rows, &bits) <= dist(rows, &inv) {
+                        TextCell { ch: *g, fg: b, bg: a }
+                    } else {
+                        TextCell { ch: *g, fg: a, bg: b }
+                    }
+                };
+                out.push(cell);
+            }
+        }
+        out
     }
 
     /// The last complete frame as 8-bit RGB.

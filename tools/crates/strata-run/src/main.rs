@@ -6,9 +6,11 @@
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode, Stdio};
+use std::process::ExitCode;
 use std::sync::mpsc::{channel, TryRecvError};
 use std::time::Instant;
+
+mod term;
 
 use strata_gate::{EvalMode, GateSim, PowerOn};
 use strata_rtl::RtlSim;
@@ -25,10 +27,13 @@ const USAGE: &str = "usage: strata-run [options]
   --ram <hex|bin>        preload RAM (test-harness shortcut)
   --flash <file>|none    flash contents from 0x200000 (default build/sw/flash.bin,
                          unless --ram is given; none: erased flash)
-  -i, --interactive      use this terminal as the machine's serial console:
-                         keys go to the UART as you type, output appears as the
-                         machine sends it; Ctrl-C or Ctrl-] quits (no cycle
-                         limit unless --max-cycles is given)
+  -i, --interactive      use this terminal as the machine's console: keys go to
+                         the UART as you type (Ctrl-C stops the program in the
+                         foreground), output appears as the machine sends it,
+                         a status line shows the LEDs; Ctrl-T switches to the
+                         video screen and back; Ctrl-] quits. No cycle limit
+                         unless --max-cycles is given
+  --screen               like --interactive, starting on the video screen
   --uart-in <text>       lines to type on the terminal (\\n ends a line); each
                          line is typed after the machine prints a prompt
                          ending in \"> \", as a person would (the UART has no
@@ -73,6 +78,7 @@ struct Args {
     screenshot: Option<PathBuf>,
     frame: Option<u64>,
     interactive: bool,
+    screen: bool,
     max_cycles_set: bool,
     eval: EvalMode,
     power_on: PowerOn,
@@ -111,6 +117,7 @@ fn parse_args() -> Result<Args, String> {
         screenshot: None,
         frame: None,
         interactive: false,
+        screen: false,
         max_cycles_set: false,
         eval: EvalMode::Event,
         power_on: PowerOn::Zero,
@@ -153,6 +160,10 @@ fn parse_args() -> Result<Args, String> {
             "--trace" => a.trace = Some(val()?.into()),
             "--screenshot" => a.screenshot = Some(val()?.into()),
             "-i" | "--interactive" => a.interactive = true,
+            "--screen" => {
+                a.interactive = true;
+                a.screen = true;
+            }
             "--frame" => a.frame = Some(parse_num(&val()?)?),
             "--eval" => {
                 a.eval = match val()?.as_str() {
@@ -182,46 +193,16 @@ fn parse_args() -> Result<Args, String> {
     Ok(a)
 }
 
-/// Puts the terminal in character mode (keys delivered as typed, no local
-/// echo, Ctrl-C delivered as a key) and restores the saved settings when
-/// dropped. Does nothing when standard input is not a terminal.
-struct CharacterMode {
-    saved: Option<String>,
-}
-
-impl CharacterMode {
-    fn enter() -> CharacterMode {
-        let stty = |args: &[&str]| Command::new("stty").args(args).stdin(Stdio::inherit()).output().ok().filter(|o| o.status.success());
-        let saved = stty(&["-g"]).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
-        if saved.is_some() {
-            stty(&["-icanon", "-echo", "-isig", "min", "1"]);
-        }
-        CharacterMode { saved }
-    }
-}
-
-impl Drop for CharacterMode {
-    fn drop(&mut self) {
-        if let Some(s) = &self.saved {
-            let _ = Command::new("stty").arg(s).stdin(Stdio::inherit()).status();
-        }
-    }
-}
-
-/// Runs the machine with this terminal as its serial console until it halts,
-/// the user quits (Ctrl-C or Ctrl-]), or `limit` cycles. Returns whether the
-/// machine halted.
+/// Runs the machine with this terminal as its console (term.rs) until it
+/// halts, the user quits, or `limit` cycles. Returns whether it halted.
 fn interactive<E: Engine>(
     m: &mut Machine<E>,
     observe: &mut dyn FnMut(&strata_sim::StepEvents),
     limit: Option<u64>,
     gate: bool,
+    screen: bool,
 ) -> bool {
-    let _mode = CharacterMode::enter();
-    eprintln!("[strata-run] this terminal is the machine's serial port; Ctrl-C or Ctrl-] quits");
-    if gate {
-        eprintln!("[strata-run] the gate-level model boots in about a minute; type at the strata> prompt");
-    }
+    let mut con = term::Console::start(gate, screen);
     let (tx, rx) = channel::<u8>();
     std::thread::spawn(move || {
         let mut stdin = std::io::stdin().lock();
@@ -232,19 +213,31 @@ fn interactive<E: Engine>(
             }
         }
     });
+    let mut shown = m.host.uart.received.len();
     loop {
         loop {
             match rx.try_recv() {
-                Ok(0x03 | 0x1d) => {
-                    eprintln!();
-                    return false;
-                }
+                Ok(term::KEY_QUIT) => return false,
+                Ok(term::KEY_VIEW) => con.toggle(),
                 Ok(b) => m.host.uart.send(&[b]),
                 Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
             }
         }
         // Short slices keep typing responsive on the slower gate-level model.
-        if m.run(2000, &mut *observe) {
+        let halted = m.run(2000, &mut *observe);
+        if halted {
+            m.drain_uart(1_000_000);
+        }
+        con.serial(&m.host.uart.received[shown..]);
+        shown = m.host.uart.received.len();
+        let (font, display) = (&m.host.mem.font.words, &m.host.display);
+        con.update(&term::Snapshot {
+            cycle: m.host.cycle,
+            leds: m.last_out.led,
+            frames: display.frames,
+            cells: &|| display.text_cells(font),
+        });
+        if halted {
             return true;
         }
         if limit.is_some_and(|l| m.cycle() >= l) {
@@ -345,7 +338,8 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
         Some(p) => Some(std::io::BufWriter::new(std::fs::File::create(p).map_err(|e| e.to_string())?)),
         None => None,
     };
-    let quiet = args.quiet;
+    // The interactive console prints the serial output itself.
+    let quiet = args.quiet || args.interactive;
     let mut retired = 0u64;
     let t1 = Instant::now();
     let mut observe = |ev: &strata_sim::StepEvents| {
@@ -382,7 +376,7 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
         _ if args.interactive => {
             let limit = args.max_cycles_set.then_some(args.max_cycles);
             let gate = !m.engine.describe().starts_with("rtl");
-            m.halted() || interactive(&mut m, &mut observe, limit, gate)
+            m.halted() || interactive(&mut m, &mut observe, limit, gate, args.screen)
         }
         Some(n) => {
             let mut halted = m.halted();
