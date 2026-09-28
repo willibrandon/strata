@@ -1,0 +1,17 @@
+[package]
+name = "strata-debug"
+description = "Debug sessions on the Strata gate-level model: replay, checkpoints, triggers, faults, waveforms and the inspection model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+strata-netlist = { path = "../strata-netlist" }
+strata-sim = { path = "../strata-sim" }
+strata-gate = { path = "../strata-gate" }
+strata-isa = { path = "../strata-isa" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+strata-asm = { path = "../strata-asm" }

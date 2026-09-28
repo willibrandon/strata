@@ -276,7 +276,52 @@ impl Default for Display {
     }
 }
 
+/// Run-length encoding of a framebuffer: (value, run length) pairs.
+fn rle(px: &[u16]) -> Vec<(u16, u32)> {
+    let mut out: Vec<(u16, u32)> = Vec::new();
+    for &p in px {
+        match out.last_mut() {
+            Some((v, n)) if *v == p => *n += 1,
+            _ => out.push((p, 1)),
+        }
+    }
+    out
+}
+
+fn unrle(runs: &[(u16, u32)], out: &mut [u16]) {
+    let mut i = 0;
+    for &(v, n) in runs {
+        out[i..i + n as usize].fill(v);
+        i += n as usize;
+    }
+}
+
+/// A compact copy of a [`Display`], for checkpoints.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DisplaySnapshot {
+    current: Vec<(u16, u32)>,
+    frame: Vec<(u16, u32)>,
+    frames: u64,
+    pos: (usize, usize, bool, bool, bool),
+}
+
 impl Display {
+    pub fn snapshot(&self) -> DisplaySnapshot {
+        DisplaySnapshot {
+            current: rle(&self.current),
+            frame: rle(&self.frame),
+            frames: self.frames,
+            pos: (self.x, self.y, self.last_de, self.last_vs, self.saw_line),
+        }
+    }
+
+    pub fn restore(&mut self, s: &DisplaySnapshot) {
+        unrle(&s.current, &mut self.current);
+        unrle(&s.frame, &mut self.frame);
+        self.frames = s.frames;
+        (self.x, self.y, self.last_de, self.last_vs, self.saw_line) = s.pos;
+    }
+
     /// Returns true when a frame completes (start of vertical sync).
     pub fn observe(&mut self, rgb: u16, hs: bool, vs: bool, de: bool) -> bool {
         let _ = hs;
@@ -387,6 +432,20 @@ pub fn png_rgb8(w: u32, h: u32, rgb: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_snapshot_round_trip() {
+        let mut d = Display::default();
+        for i in 0..5000u32 {
+            d.observe((i / 7) as u16 & 0xFFF, true, true, i % 700 < 640);
+        }
+        let s = d.snapshot();
+        let mut e = Display::default();
+        e.restore(&s);
+        assert_eq!(d.current, e.current);
+        assert_eq!(d.frame, e.frame);
+        assert!(s.current.len() < 2000);
+    }
 
     #[test]
     fn png_header() {

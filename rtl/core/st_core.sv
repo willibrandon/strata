@@ -116,12 +116,15 @@ module st_core
   // ==================================================================
   // Global control signals (defined further below)
   // ==================================================================
-  logic        w_done, w_flush, w_ready_in;
+  // Pipeline control signals are kept through synthesis so the debugger can
+  // show them by name (they are otherwise absorbed into other logic).
+  (* keep *) logic w_done, w_flush, w_ready_in;
   logic [31:0] w_redirect_pc, w_wb_data;
   logic        w_rf_we;
-  logic        x_redirect;
+  (* keep *) logic x_redirect;
   logic [31:0] x_target;
-  logic        x_go, x_ready_in, m_go, m_ready_in, d_go;
+  (* keep *) logic x_go, m_go, d_go;
+  logic        x_ready_in, m_ready_in;
 
   // ==================================================================
   // CSR unit and privilege state
@@ -134,7 +137,8 @@ module st_core
   logic [31:0]  pmp_cfg;
   logic [127:0] pmp_addr;
 
-  logic         trap_take, trap_intr, mret_commit, csr_commit, retire;
+  (* keep *) logic trap_take;
+  logic         trap_intr, mret_commit, csr_commit, retire;
   logic [4:0]   trap_code;
   logic [31:0]  trap_tval;
 
@@ -242,7 +246,7 @@ module st_core
   assign x_b = m_fwd2 ? m_result : w_fwd2 ? w_wb_data : x_rs2_val;
 
   // Interlock: a needed operand is not available yet.
-  logic x_hazard;
+  (* keep *) logic x_hazard;
   assign x_hazard = x_valid && (
       (x_ctrl.uses_rs1 && (m_fwd1 ? m_late : (w_fwd1 && w_load_waiting))) ||
       (x_ctrl.uses_rs2 && (m_fwd2 ? m_late : (w_fwd2 && w_load_waiting))));
@@ -341,7 +345,8 @@ module st_core
   // ==================================================================
   // M: memory command, interrupt sampling
   // ==================================================================
-  logic take_irq, m_issue;
+  (* keep *) logic take_irq;
+  logic m_issue;
   assign take_irq = m_valid && irq_req && w_ready_in && !w_flush && !halt;
   assign m_issue  = m_valid && (m_ctrl.is_load || m_ctrl.is_store) && !m_exc && !take_irq;
 
@@ -360,7 +365,8 @@ module st_core
   // ==================================================================
   // W: writeback and commit
   // ==================================================================
-  logic w_rsp, w_bus_fault, w_wait, w_wfi_wait, w_busy;
+  logic w_rsp, w_bus_fault, w_wait, w_wfi_wait;
+  (* keep *) logic w_busy;
   assign w_rsp       = w_pend && dbus_rsp_valid;
   assign w_bus_fault = w_rsp && dbus_rsp_err;
   assign w_wait      = w_pend && !dbus_rsp_valid;

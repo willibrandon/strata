@@ -107,6 +107,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "strata-debug"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "strata-asm",
+ "strata-gate",
+ "strata-isa",
+ "strata-netlist",
+ "strata-sim",
+]
+
+[[package]]
 name = "strata-gate"
 version = "0.1.0"
 dependencies = [

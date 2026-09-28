@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::devices::{Display, SpiFlash, UartTerminal};
+use crate::devices::{Display, DisplaySnapshot, SpiFlash, UartTerminal};
 use crate::engine::Engine;
 use crate::mem::{MemAccess, Memories};
 use crate::ports::{SocIn, SocOut};
@@ -51,12 +51,29 @@ pub struct HostState {
     pub reset_until: u64,
 }
 
+/// Host state with the display compressed, for checkpoints.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostSnapshot {
+    pub cycle: u64,
+    pub inputs: SocIn,
+    pub mem: Memories,
+    pub uart: UartTerminal,
+    pub flash_state: SpiFlash,
+    pub display: DisplaySnapshot,
+    pub buttons: u8,
+    pub reset_until: u64,
+    pub last_out: SocOut,
+}
+
 pub struct Machine<E: Engine> {
     pub engine: E,
     pub host: HostState,
     pub config: MachineConfig,
     /// Outputs of the last completed cycle.
     pub last_out: SocOut,
+    /// Outputs of the current cycle (valid when settled).
+    out: SocOut,
+    settled: bool,
     /// When set, every memory access of each cycle is appended here.
     pub mem_log: Option<Vec<(u64, &'static str, MemAccess)>>,
 }
@@ -73,7 +90,7 @@ impl<E: Engine> Machine<E> {
             buttons: 0,
             reset_until: config.reset_cycles,
         };
-        Machine { engine, host, config, last_out: SocOut::default(), mem_log: None }
+        Machine { engine, host, config, last_out: SocOut::default(), out: SocOut::default(), settled: false, mem_log: None }
     }
 
     pub fn cycle(&self) -> u64 {
@@ -93,17 +110,61 @@ impl<E: Engine> Machine<E> {
     /// Asserts the external reset for `cycles` cycles starting now.
     pub fn reset(&mut self, cycles: u64) {
         self.host.reset_until = self.host.cycle + cycles;
+        self.settled = false;
     }
 
-    /// Simulates one clock cycle.
-    pub fn step(&mut self) -> StepEvents {
+    /// Captures all host-side state (memories, devices, cycle). The flash
+    /// contents are included; they are shared by value, so keep checkpoints
+    /// few or clear the flash data if it is large and constant.
+    pub fn host_snapshot(&self) -> HostSnapshot {
+        let mut flash = self.host.flash.clone();
+        flash.data = Vec::new(); // constant; restored from the live machine
+        HostSnapshot {
+            cycle: self.host.cycle,
+            inputs: self.host.inputs,
+            mem: self.host.mem.clone(),
+            uart: self.host.uart.clone(),
+            flash_state: flash,
+            display: self.host.display.snapshot(),
+            buttons: self.host.buttons,
+            reset_until: self.host.reset_until,
+            last_out: self.last_out,
+        }
+    }
+
+    /// Restores host state captured by `host_snapshot`. The engine must be
+    /// restored separately to the same cycle.
+    pub fn restore_host(&mut self, s: &HostSnapshot) {
+        let data = std::mem::take(&mut self.host.flash.data);
+        self.host.flash = s.flash_state.clone();
+        self.host.flash.data = data;
+        self.host.cycle = s.cycle;
+        self.host.inputs = s.inputs;
+        self.host.mem = s.mem.clone();
+        self.host.uart = s.uart.clone();
+        self.host.display.restore(&s.display);
+        self.host.buttons = s.buttons;
+        self.host.reset_until = s.reset_until;
+        self.last_out = s.last_out;
+        self.settled = false;
+    }
+
+    /// Marks the current cycle as needing re-evaluation (after the host state
+    /// or the engine was changed from outside, e.g. a restored snapshot).
+    pub fn invalidate(&mut self) {
+        self.settled = false;
+    }
+
+    /// Applies the current cycle's inputs and settles combinational logic.
+    /// Between steps the machine is always settled: every net and output
+    /// reflects the current cycle, before its clock edge.
+    fn settle(&mut self) {
         let h = &mut self.host;
         h.inputs.rst_in = h.cycle < h.reset_until;
         h.inputs.btn = h.buttons & 0x7F;
         self.engine.set_inputs(&h.inputs);
         self.engine.eval();
         let mut out = self.engine.outputs();
-
         // The flash drives MISO within the cycle in which it sees SCK fall.
         let miso = h.flash.respond(out.spi_cs_n, out.spi_sck, out.spi_mosi);
         if miso != h.inputs.spi_miso {
@@ -112,10 +173,35 @@ impl<E: Engine> Machine<E> {
             self.engine.eval();
             out = self.engine.outputs();
         }
+        self.out = out;
+        self.settled = true;
+    }
 
-        let settled = h.cycle > h.reset_until + RESET_LATENCY;
+    /// Outputs of the current (settled) cycle.
+    pub fn outputs(&mut self) -> &SocOut {
+        if !self.settled {
+            self.settle();
+        }
+        &self.out
+    }
+
+    /// Re-evaluates the current cycle after a change made from outside
+    /// (a forced net, a flipped flip-flop, new button levels).
+    pub fn resettle(&mut self) {
+        self.settle();
+    }
+
+    /// Completes the current cycle (observation, clock edge) and settles the
+    /// next one.
+    pub fn step(&mut self) -> StepEvents {
+        if !self.settled {
+            self.settle();
+        }
+        let out = self.out;
+        let h = &mut self.host;
+        let live = h.cycle > h.reset_until + RESET_LATENCY;
         let ev = StepEvents {
-            retire: if settled { Retire::from_trace(h.cycle, &out.trace) } else { None },
+            retire: if live { Retire::from_trace(h.cycle, &out.trace) } else { None },
             uart_byte: h.uart.observe_tx(out.uart_tx),
             frame_done: h.display.observe(out.vid_rgb, out.vid_hs, out.vid_vs, out.vid_de),
         };
@@ -153,6 +239,7 @@ impl<E: Engine> Machine<E> {
         h.inputs.font_b_rdata = h.mem.font.b_rdata;
         h.cycle += 1;
         self.last_out = out;
+        self.settle();
         ev
     }
 
