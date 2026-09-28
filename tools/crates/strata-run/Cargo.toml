@@ -1,0 +1,15 @@
+[package]
+name = "strata-run"
+description = "Headless runner for the Strata machine (gate-level or RTL engine)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "strata-run"
+path = "src/main.rs"
+
+[dependencies]
+strata-netlist = { path = "../strata-netlist" }
+strata-sim = { path = "../strata-sim" }
+strata-gate = { path = "../strata-gate" }

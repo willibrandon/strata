@@ -13,7 +13,6 @@ produced it. Registers are never retimed: every flip-flop is one RTL register
 bit. Memory macros are outside strata_soc and do not appear.
 """
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -60,7 +59,7 @@ write_verilog -noexpr -noattr {out}/strata_soc.v
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description="Gate-level synthesis of strata_soc to sky130 cells.")
     ap.add_argument("--out", default=str(ROOT / "build/gate"))
     args = ap.parse_args()
     out = Path(args.out)

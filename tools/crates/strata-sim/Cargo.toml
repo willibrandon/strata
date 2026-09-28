@@ -1,0 +1,9 @@
+[package]
+name = "strata-sim"
+description = "Cycle-based simulation of the Strata machine: logic-engine interface, memory macros and pin-level host devices"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

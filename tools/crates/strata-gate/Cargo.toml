@@ -1,0 +1,11 @@
+[package]
+name = "strata-gate"
+description = "Event-driven gate-level simulator for Strata netlists"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+strata-netlist = { path = "../strata-netlist" }
+strata-sim = { path = "../strata-sim" }
+serde = { version = "1", features = ["derive"] }
