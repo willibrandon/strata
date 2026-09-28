@@ -1,0 +1,8 @@
+Build an original, synthesizable computer and a native debugging environment that connects its software execution to its hardware implementation.
+Design the processor, memory system, interconnect, and peripherals in synthesizable SystemVerilog. Implement an original RV32I microarchitecture with the explicitly documented privileged facilities needed by a small operating system. Do not reuse an existing CPU core.
+Produce an executable gate-level model from the hardware design. In gate mode, the circuit must determine execution; no instruction interpreter or host-side game logic may substitute for it. Clearly identify every memory or device abstraction.
+Build the assembler, boot software, drivers, small operating system, and a game. Guest software must interact only with the machine’s documented interfaces.
+Develop a debugger that connects source and assembly to instruction execution, memory transactions, hardware modules, and actual netlist cells. Support deterministic replay, checkpoints, waveform inspection, precise triggers, and controlled fault injection. Build 3D navigation around this inspection model, not around decorative hardware.
+Verify instruction behavior, check RTL-to-netlist equivalence where supported, and provide reproducible whole-machine tests. Deliver an FPGA implementation flow and distinguish simulated results, implementation-tool results, and physically tested results.
+Extend the system with transistor-level analysis of selected cells and a physical-layout view derived from real design-tool output. State the scope and fidelity of each mode.
+Success means the computer works without the visualizer, the visualizer accurately explains the computer, and the design has a demonstrated path to physical hardware.
