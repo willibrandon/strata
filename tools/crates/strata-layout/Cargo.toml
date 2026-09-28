@@ -1,0 +1,8 @@
+[package]
+name = "strata-layout"
+description = "Reads the placed and routed layout of strata_soc (DEF, LEF, SPEF) for the debugger"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]

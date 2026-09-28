@@ -24,7 +24,11 @@ const USAGE: &str = "usage: strata-run [options]
   --ram <hex|bin>        preload RAM (test-harness shortcut)
   --flash <file>|none    flash contents from 0x200000 (default build/sw/flash.bin,
                          unless --ram is given; none: erased flash)
-  --uart-in <text>       bytes to type on the terminal (\\n for newline)
+  --uart-in <text>       lines to type on the terminal (\\n ends a line); each
+                         line is typed after the machine prints a prompt
+                         ending in \"> \", as a person would (the UART has no
+                         flow control)
+  --uart-raw <text>      bytes to send on the serial line from cycle 0
   --script <file>        run an expect/send script (see strata-sim script.rs),
                          then continue until halt or --max-cycles
   --uart-div <n>         terminal bit period in cycles (default 25)
@@ -55,6 +59,7 @@ struct Args {
     flash: Option<PathBuf>,
     erased_flash: bool,
     uart_in: Option<String>,
+    uart_raw: Option<String>,
     script: Option<PathBuf>,
     uart_div: u32,
     buttons: u8,
@@ -90,6 +95,7 @@ fn parse_args() -> Result<Args, String> {
         flash: None,
         erased_flash: false,
         uart_in: None,
+        uart_raw: None,
         script: None,
         uart_div: 25,
         buttons: 0,
@@ -127,6 +133,7 @@ fn parse_args() -> Result<Args, String> {
                 }
             }
             "--uart-in" => a.uart_in = Some(val()?.replace("\\n", "\n")),
+            "--uart-raw" => a.uart_raw = Some(val()?.replace("\\n", "\n")),
             "--script" => a.script = Some(val()?.into()),
             "--uart-div" => a.uart_div = parse_num(&val()?)? as u32,
             "--buttons" => a.buttons = parse_num(&val()?)? as u8,
@@ -245,7 +252,7 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
     if let Some(p) = &args.flash {
         m.host.flash.program(FLASH_IMAGE_OFFSET, &read_image(p)?);
     }
-    if let Some(s) = &args.uart_in {
+    if let Some(s) = &args.uart_raw {
         m.host.uart.send(s.as_bytes());
     }
     m.host.buttons = args.buttons;
@@ -272,9 +279,18 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
             let _ = o.flush();
         }
     };
+    let mut steps = Vec::new();
+    if let Some(text) = &args.uart_in {
+        for line in text.split_inclusive('\n') {
+            steps.push(strata_sim::script::Step::Expect("> ".into()));
+            steps.push(strata_sim::script::Step::Send(line.as_bytes().to_vec()));
+        }
+    }
     if let Some(p) = &args.script {
         let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?;
-        let steps = strata_sim::script::parse(&text)?;
+        steps.extend(strata_sim::script::parse(&text)?);
+    }
+    if !steps.is_empty() {
         strata_sim::script::run(&mut m, &steps, args.max_cycles, |_, ev| observe(ev))
             .map_err(|e| format!("script: {e}"))?;
     }

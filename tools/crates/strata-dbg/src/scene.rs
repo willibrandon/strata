@@ -53,12 +53,15 @@ pub enum Placement {
 pub struct SceneLayout {
     /// Floor position (x, z) of each cell's center.
     pub cell_pos: Vec<Vec2>,
-    /// Footprint of each cell box (edge length).
-    pub cell_size: Vec<f32>,
+    /// Footprint of each cell box (x, z extent).
+    pub cell_dims: Vec<Vec2>,
     pub module_rect: Vec<Rect>,
     pub stage_rect: [Option<Rect>; 5],
     pub extent: Rect,
     pub placement: Placement,
+    /// For a physical placement: scene position = (layout µm + offset) * scale,
+    /// with the layout's y axis along -z.
+    pub phys: Option<(Vec2, f32)>,
 }
 
 /// Heights of the pipeline and source layers, as fractions of the floor size.
@@ -76,43 +79,38 @@ impl SceneLayout {
         place(c, mods, stages, 0, root, true, &mut cell_pos, &mut module_rect);
         let mut layout = SceneLayout {
             cell_pos,
-            cell_size: vec![0.8; n],
+            cell_dims: vec![Vec2::splat(0.8); n],
             module_rect,
             stage_rect: [None; 5],
             extent: root,
             placement: Placement::Treemap,
+            phys: None,
         };
         layout.compute_stage_rects(stages);
         layout
     }
 
-    /// Positions from a placed design (cell name -> x, z, size), scaled to
-    /// the same floor size as the treemap. Cells missing from the placement
-    /// keep their treemap position.
-    pub fn with_physical(&self, placed: &[(u32, f32, f32, f32)], stages: &StageMap, mods: &[ModuleInfo]) -> SceneLayout {
+    /// Positions from the placed layout: `placed` holds (cell, x, y, w, h)
+    /// in µm for every cell found in the layout, `die` is the die area.
+    /// The die is scaled to the same floor size as the treemap. Cells missing
+    /// from the layout keep their treemap position.
+    pub fn with_physical(&self, placed: &[(u32, f64, f64, f64, f64)], die: [f64; 4], stages: &StageMap, mods: &[ModuleInfo]) -> SceneLayout {
+        let span = (die[2] - die[0]).max(die[3] - die[1]).max(1.0) as f32;
+        let scale = self.extent.w() / span;
+        let offset = Vec2::new(-(die[0] + die[2]) as f32 / 2.0, -(die[1] + die[3]) as f32 / 2.0);
         let mut out = SceneLayout {
             cell_pos: self.cell_pos.clone(),
-            cell_size: self.cell_size.clone(),
+            cell_dims: self.cell_dims.clone(),
             module_rect: self.module_rect.clone(),
             stage_rect: [None; 5],
             extent: self.extent,
             placement: Placement::Physical,
+            phys: Some((offset, scale)),
         };
-        if placed.is_empty() {
-            return out;
-        }
-        let (mut lo, mut hi) = (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN));
-        for &(_, x, z, _) in placed {
-            lo = lo.min(Vec2::new(x, z));
-            hi = hi.max(Vec2::new(x, z));
-        }
-        let span = (hi - lo).max_element().max(1e-3);
-        let target = self.extent.w();
-        let scale = target / span;
-        let offset = -(lo + hi) / 2.0;
-        for &(cell, x, z, size) in placed {
-            out.cell_pos[cell as usize] = (Vec2::new(x, z) + offset) * scale;
-            out.cell_size[cell as usize] = (size * scale).clamp(0.3, 4.0);
+        for &(cell, x, y, w, h) in placed {
+            let c = out.to_scene(x + w / 2.0, y + h / 2.0);
+            out.cell_pos[cell as usize] = c;
+            out.cell_dims[cell as usize] = Vec2::new(w as f32 * scale, h as f32 * scale);
         }
         // Module regions become the bounding boxes of their cells.
         for (i, m) in mods.iter().enumerate() {
@@ -139,6 +137,15 @@ impl SceneLayout {
         }
         out.compute_stage_rects(stages);
         out
+    }
+
+    /// Scene floor position of a layout point (µm); treemap layouts have no
+    /// such mapping and return the origin.
+    pub fn to_scene(&self, x: f64, y: f64) -> Vec2 {
+        match self.phys {
+            Some((o, s)) => Vec2::new((x as f32 + o.x) * s, -(y as f32 + o.y) * s),
+            None => Vec2::ZERO,
+        }
     }
 
     fn compute_stage_rects(&mut self, stages: &StageMap) {

@@ -6,9 +6,12 @@
 //! read from that netlist and the debug information of the programs.
 
 mod app;
+mod layout_view;
+mod physical;
 mod render3d;
 mod scene;
 mod scene_view;
+mod transistor_view;
 mod view;
 mod worker;
 
@@ -48,6 +51,8 @@ const USAGE: &str = "usage: strata-dbg [options]
   --sdb <name=path>    additional debug information
   --session <json>     reopen a saved session (replays its timeline)
   --random-power-on <seed>  pseudo-random initial flip-flop contents
+  --layout <dir>|none  placed and routed layout (default build/physical/results/
+                       sky130hd/strata_soc/base when present)
 
 Headless screenshots (no window):
   --screenshot <png>   render the interface offscreen and save it
@@ -56,13 +61,14 @@ Headless screenshots (no window):
   --break <symbol>     run to this function (commit breakpoint) first
   --select <cell>      select a netlist cell by name
   --type <text>        type on the terminal at the start (\\n for newline)
-  --color <mode>       3D coloring: stage, module, activity, value";
+  --color <mode>       3D coloring: stage, module, activity, value
+  --physical           3D view with the physical placement
+  --tab <name>         bring a tab to the front (layout, transistors, ...)
+  --simulate           run the transistor-level simulation of the selected cell
+  --focus              zoom the 3D and layout views to the selected cell";
 
 fn default_liberty() -> PathBuf {
-    let root = std::env::var("PDK_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("tools/pdk"));
-    root.join("sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib")
+    pdk_root().join("sky130A/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib")
 }
 
 #[derive(Default)]
@@ -74,9 +80,26 @@ struct Shot {
     select: Option<String>,
     typed: Option<String>,
     color: Option<String>,
+    physical: bool,
+    tabs: Vec<String>,
+    simulate: bool,
+    focus: bool,
 }
 
-fn parse_args() -> Result<(SessionConfig, Option<PathBuf>, Shot), String> {
+fn pdk_root() -> PathBuf {
+    std::env::var("PDK_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("tools/pdk"))
+}
+
+struct Args {
+    cfg: SessionConfig,
+    session: Option<PathBuf>,
+    shot: Shot,
+    layout: Option<PathBuf>,
+}
+
+fn parse_args() -> Result<Args, String> {
     let mut cfg = SessionConfig {
         netlist: "build/gate/strata_soc.json".into(),
         liberty: default_liberty(),
@@ -91,6 +114,7 @@ fn parse_args() -> Result<(SessionConfig, Option<PathBuf>, Shot), String> {
     let mut sw = PathBuf::from("build/sw");
     let mut session = None;
     let mut shot = Shot { size: (1600.0, 1000.0), ..Default::default() };
+    let mut layout = Some(PathBuf::from(physical::DEFAULT_DIR)).filter(|d| d.join("6_final.def").exists());
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         let mut val = || it.next().ok_or_else(|| format!("{a} needs a value"));
@@ -122,6 +146,14 @@ fn parse_args() -> Result<(SessionConfig, Option<PathBuf>, Shot), String> {
             "--select" => shot.select = Some(val()?),
             "--type" => shot.typed = Some(val()?.replace("\\n", "\n")),
             "--color" => shot.color = Some(val()?),
+            "--physical" => shot.physical = true,
+            "--tab" => shot.tabs.push(val()?),
+            "--simulate" => shot.simulate = true,
+            "--focus" => shot.focus = true,
+            "--layout" => {
+                let v = val()?;
+                layout = (v != "none").then(|| PathBuf::from(v));
+            }
             "-h" | "--help" => return Err(USAGE.into()),
             o => return Err(format!("unknown option {o}\n{USAGE}")),
         }
@@ -143,11 +175,11 @@ fn parse_args() -> Result<(SessionConfig, Option<PathBuf>, Shot), String> {
             }
         }
     }
-    Ok((cfg, session, shot))
+    Ok(Args { cfg, session, shot, layout })
 }
 
 fn main() {
-    let (cfg, session_file, shot) = match parse_args() {
+    let Args { cfg, session: session_file, shot, layout } = match parse_args() {
         Ok(x) => x,
         Err(e) => {
             eprintln!("{e}");
@@ -186,7 +218,31 @@ fn main() {
     source_files.sort();
     source_files.dedup();
     let mut scene = scene_view::SceneView::new(&compiled, &mods, &stages);
-    let statics = Arc::new(app::Statics { compiled, mods, stages, source_files });
+    let physical = layout.and_then(|dir| match physical::Physical::load(&dir, &pdk_root(), &compiled) {
+        Ok(p) => {
+            eprintln!(
+                "strata-dbg: layout {}: {} components, {} of {} cells placed",
+                dir.display(),
+                p.layout.components.len(),
+                p.matched(),
+                compiled.netlist.cells.len()
+            );
+            let placed: Vec<(u32, f64, f64, f64, f64)> = p
+                .cell_comp
+                .iter()
+                .enumerate()
+                .filter_map(|(cell, k)| k.map(|k| (cell, &p.layout.components[k as usize])))
+                .map(|(cell, c)| (cell as u32, c.x, c.y, c.w, c.h))
+                .collect();
+            scene.physical = Some(scene.treemap.with_physical(&placed, p.layout.die, &stages, &mods));
+            Some(Arc::new(p))
+        }
+        Err(e) => {
+            eprintln!("strata-dbg: no layout: {e}");
+            None
+        }
+    });
+    let statics = Arc::new(app::Statics { compiled, mods, stages, source_files, physical });
 
     if let Some(path) = shot.path.clone() {
         screenshot(session, statics, scene, &shot, &path);
@@ -246,6 +302,21 @@ fn screenshot(mut session: Session, statics: Arc<app::Statics>, mut scene: scene
         Some("value") => scene_view::ColorBy::Value,
         _ => scene_view::ColorBy::Stage,
     };
+    scene.use_physical = shot.physical && scene.physical.is_some();
+    let tabs: Vec<app::Tab> = shot
+        .tabs
+        .iter()
+        .filter_map(|t| match t.as_str() {
+            "layout" => Some(app::Tab::Layout),
+            "transistors" => Some(app::Tab::Transistors),
+            "inspector" => Some(app::Tab::Inspector),
+            "waves" => Some(app::Tab::Waves),
+            "display" => Some(app::Tab::Display),
+            _ => None,
+        })
+        .collect();
+    let simulate = shot.simulate;
+    let focus = shot.focus;
     let select = shot.select.as_ref().and_then(|n| inspect::cell_index(&statics.compiled).get(n.as_str()).copied());
     let size = egui::vec2(shot.size.0, shot.size.1);
     let st = Arc::clone(&statics);
@@ -256,10 +327,31 @@ fn screenshot(mut session: Session, statics: Arc<app::Statics>, mut scene: scene
         if let Some(c) = select {
             app.sel.select_cell(&statics.compiled, c);
         }
+        for t in &tabs {
+            app.focus_tab(*t);
+        }
+        app.transistors.auto_run = simulate;
+        if let (true, Some(c)) = (focus, select) {
+            app.scene.focus_cell(c);
+            if let Some(ph) = statics.physical.as_deref() {
+                if let Some(k) = ph.cell_comp[c as usize] {
+                    app.layout_view.focus(ph, k);
+                }
+            }
+        }
         Main { app }
     });
-    // Let activity accumulate and layout settle.
+    // Let activity accumulate and layout settle; wait for background work
+    // (library loading, transistor-level simulation).
     harness.run_steps(6);
+    for _ in 0..400 {
+        if !harness.state().app.transistors.busy() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        harness.run_steps(1);
+    }
+    harness.run_steps(2);
     match harness.render() {
         Ok(img) => match img.save(path) {
             Ok(()) => eprintln!("strata-dbg: wrote {}", path.display()),

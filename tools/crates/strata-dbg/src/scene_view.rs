@@ -10,6 +10,7 @@ use strata_debug::inspect::{self, ModuleInfo, StageMap};
 use strata_gate::Compiled;
 use strata_netlist::PortDir;
 
+use crate::physical::Physical;
 use crate::render3d::{BoxInstance, LineVertex, Renderer3d};
 use crate::scene::{Placement, Rect, SceneLayout, SOURCE_HEIGHT, STAGE_HEIGHT};
 use crate::view::View;
@@ -24,6 +25,15 @@ pub enum ColorBy {
 }
 
 pub const STAGE_COLORS: [[u8; 3]; 5] = [[90, 150, 255], [80, 210, 230], [110, 220, 110], [255, 170, 60], [230, 110, 220]];
+
+/// Colors of the routing layers, bottom first (li1, met1 ... met5).
+pub const LAYER_COLORS: [[u8; 3]; 6] = [[170, 120, 230], [80, 140, 255], [240, 90, 170], [90, 220, 170], [240, 220, 80], [255, 150, 60]];
+
+/// Height of routing layer `l` in the physical view: above the (lowered)
+/// cell boxes, one step per layer.
+fn layer_y(extent: f32, l: u8) -> f32 {
+    extent * (0.03 + 0.006 * l as f32)
+}
 
 struct Camera {
     target: Vec3,
@@ -64,6 +74,12 @@ pub struct SceneView {
     pub show_source: bool,
     pub show_nets: bool,
     module_hue: Vec<f32>,
+    /// Toggle counts measured over a window of cycles (by replay); when
+    /// present, activity coloring uses them instead of the live estimate.
+    pub window: Option<Arc<inspect::Activity>>,
+    pub window_len: u64,
+    /// A window the user asked to measure: (start, end).
+    pub request_window: Option<(u64, u64)>,
 }
 
 fn hsv(h: f32, s: f32, v: f32) -> [f32; 3] {
@@ -107,6 +123,9 @@ impl SceneView {
             show_source: true,
             show_nets: true,
             module_hue,
+            window: None,
+            window_len: 20_000,
+            request_window: None,
         }
     }
 
@@ -139,7 +158,7 @@ impl SceneView {
         self.prev_toggles = Some((view.cycle, Arc::clone(t)));
     }
 
-    fn cell_color(&self, c: &Compiled, mods: &[ModuleInfo], stages: &StageMap, view: &View, cell: usize) -> [f32; 4] {
+    pub fn cell_color(&self, c: &Compiled, mods: &[ModuleInfo], stages: &StageMap, view: &View, cell: usize) -> [f32; 4] {
         let _ = mods;
         match self.color_by {
             ColorBy::Module => {
@@ -157,7 +176,19 @@ impl SceneView {
                 }
             }
             ColorBy::Activity => {
-                let a = (self.activity[cell] * 2.0).min(1.0);
+                let rate = match &self.window {
+                    Some(w) if w.end > w.start => {
+                        let n: u32 = c.netlist.cells[cell]
+                            .pins
+                            .iter()
+                            .filter(|p| p.dir == PortDir::Output)
+                            .map(|p| w.net_toggles[p.net as usize])
+                            .sum();
+                        n as f32 / (w.end - w.start) as f32
+                    }
+                    _ => self.activity[cell],
+                };
+                let a = (rate * 2.0).min(1.0);
                 [0.15 + 0.85 * a, 0.12 + 0.6 * a * a, 0.18 * (1.0 - a), 1.0]
             }
             ColorBy::Value => {
@@ -178,6 +209,7 @@ impl SceneView {
         stages: &StageMap,
         view: &View,
         sel: &mut Selection,
+        phys: Option<&Physical>,
     ) {
         self.update_activity(c, view);
         ui.horizontal(|ui| {
@@ -190,6 +222,24 @@ impl SceneView {
             ui.checkbox(&mut self.show_pipeline, "pipeline");
             ui.checkbox(&mut self.show_source, "source");
             ui.checkbox(&mut self.show_nets, "nets of selection");
+            if self.color_by == ColorBy::Activity {
+                ui.separator();
+                ui.add(egui::DragValue::new(&mut self.window_len).range(100..=5_000_000).speed(100.0).suffix(" cycles"));
+                if ui.button("measure").on_hover_text("toggle counts of every net over this many cycles before the current one, by replay").clicked() {
+                    self.request_window = Some((view.cycle.saturating_sub(self.window_len), view.cycle));
+                }
+                match &self.window {
+                    Some(w) => {
+                        ui.label(format!("window {}..{}", w.start, w.end));
+                        if ui.small_button("live").clicked() {
+                            self.window = None;
+                        }
+                    }
+                    None => {
+                        ui.label("live");
+                    }
+                }
+            }
             ui.separator();
             let placed = self.physical.is_some();
             ui.add_enabled_ui(placed, |ui| {
@@ -246,15 +296,36 @@ impl SceneView {
         for &k in &changed_cells {
             now_active[k as usize] = true;
         }
-        for cell in 0..n {
+        let physical_view = layout.placement == Placement::Physical;
+        for (cell, &active) in now_active.iter().enumerate() {
             let p = layout.cell_pos[cell];
-            let size = layout.cell_size[cell];
-            let h = 0.6 + (self.activity[cell] * 10.0).min(14.0) + if now_active[cell] { 2.5 } else { 0.0 };
+            let d = layout.cell_dims[cell];
+            // Lower boxes in the physical view, so the metal layers above stay visible.
+            let h = if physical_view {
+                0.3 + (self.activity[cell] * 2.0).min(2.0) + if active { 1.0 } else { 0.0 }
+            } else {
+                0.6 + (self.activity[cell] * 10.0).min(14.0) + if active { 2.5 } else { 0.0 }
+            };
             let mut color = self.cell_color(c, mods, stages, view, cell);
             if Some(cell as u32) == sel.cell {
                 color = [1.0, 1.0, 1.0, 1.0];
             }
-            boxes.push(BoxInstance { center: [p.x, 0.0, p.y], size: [size, h, size], color });
+            boxes.push(BoxInstance { center: [p.x, 0.0, p.y], size: [d.x, h, d.y], color });
+        }
+        // In the physical placement, the cells the flow added (clock tree,
+        // repair buffers, tie cells, antenna diodes) are shown dimmed; they are
+        // not part of the simulated netlist. Fillers and well taps are omitted.
+        let mut added = 0usize;
+        if let (true, Some(ph)) = (physical_view, phys) {
+            for (k, comp) in ph.layout.components.iter().enumerate() {
+                if comp.physical_only || ph.comp_cell[k].is_some() {
+                    continue;
+                }
+                let ctr = layout.to_scene(comp.x + comp.w / 2.0, comp.y + comp.h / 2.0);
+                let s = layout.phys.map_or(1.0, |p| p.1);
+                boxes.push(BoxInstance { center: [ctr.x, 0.0, ctr.y], size: [comp.w as f32 * s, 0.35, comp.h as f32 * s], color: [0.3, 0.3, 0.33, 1.0] });
+                added += 1;
+            }
         }
         let mut lines: Vec<LineVertex> = Vec::new();
         let rect_outline = |r: &Rect, y: f32, col: [f32; 4], lines: &mut Vec<LineVertex>| {
@@ -276,17 +347,17 @@ impl SceneView {
         // Pipeline plates, tied to the cells of their stage: to the region the
         // stage's logic occupies, and to the cells active in this cycle.
         if self.show_pipeline {
-            for st in 0..5 {
+            for (st, &stage_color) in STAGE_COLORS.iter().enumerate() {
                 let Some(region) = layout.stage_rect[st] else { continue };
                 let valid = view.stages.get(st).is_some_and(|s| s.valid);
                 let pr = plate_rect(extent, st);
                 let y = stage_y(extent, st);
                 let pc2 = pr.center();
-                let col = rgb(STAGE_COLORS[st], if valid { 0.55 } else { 0.18 });
+                let col = rgb(stage_color, if valid { 0.55 } else { 0.18 });
                 boxes.push(BoxInstance { center: [pc2.x, y, pc2.y], size: [pr.w(), extent * 0.006, pr.d()], color: col });
-                let edge = rgb(STAGE_COLORS[st], if valid { 0.95 } else { 0.35 });
+                let edge = rgb(stage_color, if valid { 0.95 } else { 0.35 });
                 rect_outline(&pr, y + extent * 0.006, edge, &mut lines);
-                rect_outline(&region, 0.1, rgb(STAGE_COLORS[st], 0.5), &mut lines);
+                rect_outline(&region, 0.1, rgb(stage_color, 0.5), &mut lines);
                 let rc = region.center();
                 lines.push(LineVertex { pos: [pc2.x, y, pc2.y], color: edge });
                 lines.push(LineVertex { pos: [rc.x, 0.2, rc.y], color: [edge[0], edge[1], edge[2], 0.5] });
@@ -309,18 +380,46 @@ impl SceneView {
         // Source layer: tied to each stage holding an instruction.
         let source_anchor = Vec3::new(0.0, SOURCE_HEIGHT * extent, 0.0);
         if self.show_source && self.show_pipeline {
-            for st in 0..5 {
+            for (st, &stage_color) in STAGE_COLORS.iter().enumerate() {
                 if view.stages.get(st).is_some_and(|s| s.valid) {
                     let c2 = plate_rect(extent, st).center();
                     let y = stage_y(extent, st) + extent * 0.006;
-                    let col = rgb(STAGE_COLORS[st], 0.8);
+                    let col = rgb(stage_color, 0.8);
                     lines.push(LineVertex { pos: source_anchor.into(), color: col });
                     lines.push(LineVertex { pos: [c2.x, y, c2.y], color: col });
                 }
             }
         }
-        // Nets of the selected cell: drivers of its inputs (blue), readers of its outputs (orange).
-        if let (Some(cell), true) = (sel.cell, self.show_nets) {
+        // Nets of the selected cell. Physical placement: the routed wires and
+        // vias of each net from the layout, at the height of their metal layer.
+        // Otherwise: arcs to the drivers of its inputs (blue) and the readers
+        // of its outputs (orange).
+        let mut routed = 0usize;
+        if let (Some(cell), true, true, Some(ph)) = (sel.cell, self.show_nets, physical_view, phys) {
+            for p in &c.netlist.cells[cell as usize].pins {
+                let Some(net) = ph.net_of(cell, &p.name) else { continue };
+                routed += 1;
+                // Wires are drawn as bars (their real width, widened to stay
+                // visible), vias as posts between the two layers they join.
+                let s = layout.phys.map_or(1.0, |p| p.1);
+                let thick = extent * 0.0015;
+                for w in &net.wires {
+                    let col = rgb(LAYER_COLORS[(w.layer as usize).min(5)], 1.0);
+                    let y = layer_y(extent, w.layer);
+                    let a = layout.to_scene(w.x0 as f64, w.y0 as f64);
+                    let b = layout.to_scene(w.x1 as f64, w.y1 as f64);
+                    let wd = (w.width * s).max(extent * 0.002);
+                    let size = [(a.x - b.x).abs() + wd, thick, (a.y - b.y).abs() + wd];
+                    boxes.push(BoxInstance { center: [(a.x + b.x) / 2.0, y - thick / 2.0, (a.y + b.y) / 2.0], size, color: col });
+                }
+                for v in &net.vias {
+                    let a = layout.to_scene(v.x as f64, v.y as f64);
+                    let (y0, y1) = (layer_y(extent, v.lower), layer_y(extent, v.lower + 1));
+                    let wd = extent * 0.002;
+                    boxes.push(BoxInstance { center: [a.x, y0, a.y], size: [wd, y1 - y0, wd], color: [0.92, 0.92, 0.92, 1.0] });
+                }
+            }
+        } else if let (Some(cell), true) = (sel.cell, self.show_nets) {
             let here = layout.cell_world(cell) + Vec3::Y * 1.0;
             for p in &c.netlist.cells[cell as usize].pins {
                 if p.dir == PortDir::Input {
@@ -384,12 +483,12 @@ impl SceneView {
             }
         }
         if self.show_pipeline {
-            for st in 0..5 {
+            for (st, &stage_color) in STAGE_COLORS.iter().enumerate() {
                 let Some(sv) = view.stages.get(st) else { continue };
                 let pr = plate_rect(extent, st);
                 let z = if st % 2 == 0 { pr.z1 } else { pr.z0 };
                 if let Some(p) = project(Vec3::new(pr.center().x, stage_y(extent, st), z)) {
-                    let col = STAGE_COLORS[st];
+                    let col = stage_color;
                     let text = if sv.valid { format!("{}  {:08x}\n{}", sv.name, sv.pc, sv.text) } else { format!("{}\nbubble", sv.name) };
                     let galley = painter.layout(text, egui::FontId::monospace(11.0), Color32::from_rgb(col[0], col[1], col[2]), 200.0);
                     let dy = if st % 2 == 0 { 6.0 } else { -galley.size().y - 12.0 };
@@ -422,9 +521,13 @@ impl SceneView {
             rect.left_bottom() + egui::vec2(8.0, -8.0),
             egui::Align2::LEFT_BOTTOM,
             format!(
-                "{} cells, {} placement. Drag: orbit. Shift/right-drag: pan. Scroll: zoom. Click: select.",
+                "{} cells, {}. Drag: orbit. Shift/right-drag: pan. Scroll: zoom. Click: select.",
                 n,
-                if layout.placement == Placement::Physical { "physical" } else { "module treemap" }
+                if physical_view {
+                    format!("placed as in the layout, plus {added} cells added by the flow (gray); {routed} routed nets of the selection shown")
+                } else {
+                    "placed by module (treemap)".to_string()
+                }
             ),
             egui::FontId::proportional(11.0),
             Color32::from_gray(150),
@@ -479,6 +582,14 @@ impl SceneView {
             self.camera.target = p;
             self.camera.distance = extent * 0.12;
         }
+    }
+
+    /// Points the camera at a cell, close up.
+    pub fn focus_cell(&mut self, cell: u32) {
+        let p = self.layout().cell_world(cell);
+        let extent = self.layout().extent.w();
+        self.camera.target = p;
+        self.camera.distance = extent * 0.18;
     }
 
     /// Points the camera at a module's region.

@@ -13,7 +13,10 @@ use strata_debug::{
 };
 use strata_gate::Compiled;
 
+use crate::layout_view::LayoutView;
+use crate::physical::Physical;
 use crate::scene_view::{SceneView, STAGE_COLORS};
+use crate::transistor_view::{self, TransistorView};
 use crate::view::View;
 use crate::worker::{Command, Worker};
 use crate::Selection;
@@ -34,6 +37,8 @@ pub enum Tab {
     Waves,
     Hierarchy,
     Inspector,
+    Layout,
+    Transistors,
 }
 
 impl Tab {
@@ -53,6 +58,8 @@ impl Tab {
             Tab::Waves => "Waves",
             Tab::Hierarchy => "Hierarchy",
             Tab::Inspector => "Inspector",
+            Tab::Layout => "Layout",
+            Tab::Transistors => "Transistors",
         }
     }
 }
@@ -63,6 +70,8 @@ pub struct Statics {
     pub mods: Vec<ModuleInfo>,
     pub stages: StageMap,
     pub source_files: Vec<PathBuf>,
+    /// The placed and routed layout, when one was found.
+    pub physical: Option<Arc<Physical>>,
 }
 
 pub struct App {
@@ -88,13 +97,19 @@ pub struct App {
     display_seen: u64,
     prev_regs: [u32; 32],
     status_line: String,
+    pub layout_view: LayoutView,
+    pub transistors: TransistorView,
 }
 
 impl App {
     pub fn new(worker: Worker, st: Arc<Statics>, scene: SceneView) -> App {
-        let mut dock = DockState::new(vec![Tab::Scene, Tab::Display, Tab::Waves]);
+        let mut dock = DockState::new(vec![Tab::Scene, Tab::Layout, Tab::Display, Tab::Waves]);
         let surface = dock.main_surface_mut();
-        let [center, right] = surface.split_right(NodeIndex::root(), 0.72, vec![Tab::Registers, Tab::Pipeline, Tab::Inspector, Tab::Hierarchy]);
+        let [center, right] = surface.split_right(
+            NodeIndex::root(),
+            0.68,
+            vec![Tab::Registers, Tab::Pipeline, Tab::Inspector, Tab::Transistors, Tab::Hierarchy],
+        );
         let [center, _left] = surface.split_left(center, 0.30, vec![Tab::Source, Tab::Disassembly]);
         let _ = surface.split_below(center, 0.70, vec![Tab::Terminal, Tab::Bus, Tab::Events, Tab::Triggers, Tab::Faults]);
         let _ = right;
@@ -121,6 +136,17 @@ impl App {
             display_seen: u64::MAX,
             prev_regs: [0; 32],
             status_line: String::new(),
+            layout_view: LayoutView::default(),
+            transistors: TransistorView::new(transistor_view::start_loading()),
+        }
+    }
+
+    /// Makes `tab` the visible tab of its group.
+    pub fn focus_tab(&mut self, tab: Tab) {
+        if let Some(dock) = self.dock.as_mut() {
+            if let Some(loc) = dock.find_tab(&tab) {
+                let _ = dock.set_active_tab(loc);
+            }
         }
     }
 
@@ -434,6 +460,10 @@ impl App {
                     if ui.link(RichText::new(format!("{:08x}", s.pc)).monospace()).clicked() {
                         self.sel.pc = Some(s.pc);
                     }
+                    match s.insn {
+                        Some(w) => ui.label(RichText::new(format!("{w:08x}")).monospace()).on_hover_text("instruction word in this stage's pipeline register"),
+                        None => ui.label(RichText::new("--------").monospace().weak()).on_hover_text("this stage keeps only the PC; the text is decoded from memory"),
+                    };
                     ui.label(RichText::new(&s.text).monospace());
                     ui.label(RichText::new(s.symbol.clone().unwrap_or_default()).weak());
                 } else {
@@ -452,7 +482,7 @@ impl App {
         ui.label(RichText::new("Completed instructions (newest first)").weak());
         let retired: Vec<_> = self.view.retired.iter().rev().take(200).cloned().collect();
         let s = self.worker.session.lock().unwrap();
-        let rows: Vec<_> = retired.iter().map(|r| (r.clone(), inspect::disassemble(&s, r.pc, r.insn), inspect::symbolize(&s, r.pc))).collect();
+        let rows: Vec<_> = retired.iter().map(|r| (*r, inspect::disassemble(&s, r.pc, r.insn), inspect::symbolize(&s, r.pc))).collect();
         drop(s);
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             for (r, text, sym) in rows {
@@ -705,11 +735,11 @@ impl App {
                 .view
                 .timeline
                 .iter()
-                .filter_map(|(c, e)| match e {
-                    TimelineEvent::Fault(f) => Some((*c, s.describe_fault(f))),
-                    TimelineEvent::Input(InputEvent::Uart(b)) => Some((*c, format!("typed {:?}", String::from_utf8_lossy(b)))),
-                    TimelineEvent::Input(InputEvent::Buttons(b)) => Some((*c, format!("buttons {b:07b}"))),
-                    TimelineEvent::Input(InputEvent::Reset(n)) => Some((*c, format!("reset for {n} cycles"))),
+                .map(|(c, e)| match e {
+                    TimelineEvent::Fault(f) => (*c, s.describe_fault(f)),
+                    TimelineEvent::Input(InputEvent::Uart(b)) => (*c, format!("typed {:?}", String::from_utf8_lossy(b))),
+                    TimelineEvent::Input(InputEvent::Buttons(b)) => (*c, format!("buttons {b:07b}")),
+                    TimelineEvent::Input(InputEvent::Reset(n)) => (*c, format!("reset for {n} cycles")),
                 })
                 .collect();
             drop(s);
@@ -995,7 +1025,11 @@ impl TabViewer for Viewer<'_> {
         match tab {
             Tab::Scene => {
                 let st = Arc::clone(&a.st);
-                a.scene.ui(ui, self.rs, &st.compiled, &st.mods, &st.stages, &a.view, &mut a.sel);
+                a.scene.window = a.worker.status.lock().unwrap().activity.clone();
+                a.scene.ui(ui, self.rs, &st.compiled, &st.mods, &st.stages, &a.view, &mut a.sel, st.physical.as_deref());
+                if let Some((start, end)) = a.scene.request_window.take() {
+                    a.send(Command::Activity { start, end });
+                }
             }
             Tab::Source => a.source_panel(ui),
             Tab::Disassembly => a.disasm_panel(ui),
@@ -1010,6 +1044,14 @@ impl TabViewer for Viewer<'_> {
             Tab::Waves => a.waves_panel(ui),
             Tab::Hierarchy => a.hierarchy_panel(ui),
             Tab::Inspector => a.inspector_panel(ui),
+            Tab::Layout => {
+                let st = Arc::clone(&a.st);
+                a.layout_view.ui(ui, &st, &a.scene, &a.view, &mut a.sel);
+            }
+            Tab::Transistors => {
+                let st = Arc::clone(&a.st);
+                a.transistors.ui(ui, &st, &a.view, &a.sel);
+            }
         }
     }
 
