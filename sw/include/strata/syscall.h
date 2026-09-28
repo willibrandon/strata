@@ -28,6 +28,9 @@
 #define SC_RESET     19  /* () resets the machine */
 #define SC_GETPID    20
 
+/* Exit code of a program stopped with Ctrl-C (as in Unix shells: 128 + 2). */
+#define EXIT_INTERRUPTED 130
+
 #define E_INVAL  (-1)
 #define E_NOENT  (-2)
 #define E_BUSY   (-3)

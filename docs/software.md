@@ -123,7 +123,10 @@ arguments in `a0`-`a2`, result in `a0` (negative for errors).
 
 ## Programs
 
-* **shell**: line editing, `help`, `ls`, `ps`, `kill`, `info` (including
+* **shell**: line editing (Backspace, Ctrl-U, Up arrow to recall the last
+  line), Ctrl-C to stop the program running in the foreground (the kernel
+  ends it with exit code 130; at the prompt it discards the line), `help`,
+  `ls`, `ps`, `kill`, `info` (including
   cycles per instruction from `mcycle`/`minstret`), `leds`, `echo`, `clear`,
   `sleep`, `halt`, `reboot`, and running programs by name, in the foreground
   or with `&` in the background.

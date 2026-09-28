@@ -1,0 +1,18 @@
+# Ctrl-C stops the program in the foreground (a counter that never exits,
+# then the game, which gives the screen back), and at the prompt it discards
+# the line being typed.
+expect strata> 
+send counter\n
+expect-leds 0x02
+send \x03
+expect strata> 
+send ps\n
+expect strata> 
+send echo discarded\x03
+expect strata> 
+send blocks\n
+wait 3000000
+send \x03
+expect strata> 
+screenshot $OUT/after_interrupt.png
+send halt 9\n

@@ -87,6 +87,12 @@ struct task *trap_handler(struct task *t)
                  cause < 12 ? cause_names[cause] : "unknown exception", t->pc, (unsigned)csr_read(mtval));
         task_kill(t, msg);
     }
+    /* Ctrl-C is acted on here, after the interrupt or system call, so that a
+     * task is never ended in the middle of its own system call. */
+    if (input_take_interrupt()) {
+        task_interrupt();
+        deliver_input();
+    }
     return schedule();
 }
 

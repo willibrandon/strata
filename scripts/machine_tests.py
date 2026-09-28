@@ -60,6 +60,8 @@ TESTS = [
     Test("multitask", "multitask", "gate", 3, 12_000_000,
          doc="a background task counting on the LEDs while the shell runs"),
     Test("crash", "crash", "gate", 4, 10_000_000, doc="all six kinds of user fault are contained"),
+    Test("interrupt", "interrupt", "gate", 9, 20_000_000,
+         doc="Ctrl-C stops a foreground program and the game, and discards a line at the prompt"),
     Test("game", "game", "gate", 5, 20_000_000, doc="the game played with the buttons, with screenshots"),
     Test("blocks_bench", "blocks_bench", "rtl", 6, 200_000_000, doc="computer player, 40 pieces"),
     Test("uart_boot", "uart_boot", "rtl", 7, 20_000_000, flash="store_only",

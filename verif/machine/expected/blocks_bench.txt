@@ -12,9 +12,9 @@ blocks exited with 2000
   clock        25000000 Hz
   RAM          65536 bytes
   flash id     ef4018
-  uptime       634 ms
+  uptime       635 ms
   video frames 37
-  cycles       15861973
-  instret      13303984
+  cycles       15886083
+  instret      13321813
   CPI          1.19
 [92mstrata[0m> halt 6

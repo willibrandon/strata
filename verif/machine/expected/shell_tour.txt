@@ -19,6 +19,7 @@ commands:
   sleep <ms>           wait
   halt [code]          stop the machine
   reboot               reset the machine
+Ctrl-C stops the program running in the foreground.
 [92mstrata[0m> ls
   shell
   blocks
@@ -27,16 +28,16 @@ commands:
   crash
 [92mstrata[0m> hello 7
 Hello from pid 2 in user mode.
-The machine has run 82 ms (5 video frames).
+The machine has run 84 ms (5 video frames).
 hello exited with 7
 [92mstrata[0m> info
   clock        25000000 Hz
   RAM          65536 bytes
   flash id     ef4018
-  uptime       84 ms
+  uptime       85 ms
   video frames 5
-  cycles       2106433
-  instret      1600774
+  cycles       2143585
+  instret      1627439
   CPI          1.31
 [92mstrata[0m> crash 3
 crash: fault 3
@@ -44,7 +45,7 @@ crash: fault 3
 crash exited with -1
 [92mstrata[0m> ps
   pid  state  slot  cycles       name
-    1  ready     0  55173        shell
+    1  ready     0  55534        shell
 [92mstrata[0m> blocks 20
 blocks: 20 pieces, 6 lines, score 600, 269 ms
 blocks exited with 600

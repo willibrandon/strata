@@ -10,8 +10,8 @@ static const char *const state_names[] = {"free", "ready", "sleep", "input", "vs
 static char line[LINE_MAX + 1];
 static char prev[LINE_MAX + 1];
 
-/* Reads a line with basic editing: backspace, Ctrl-U, and up-arrow to recall
- * the previous line. */
+/* Reads a line with basic editing: backspace, Ctrl-U, up-arrow to recall
+ * the previous line, and Ctrl-C to discard the line. */
 static void read_line(void)
 {
     size_t n = 0;
@@ -20,6 +20,11 @@ static void read_line(void)
         if (k == '\n') {
             puts_("\n");
             line[n] = 0;
+            return;
+        }
+        if (k == 0x03) {
+            puts_("^C\n");
+            line[0] = 0;
             return;
         }
         if ((k == '\b' || k == 0x7F) && n > 0) {
@@ -83,7 +88,8 @@ static void cmd_help(void)
           "  clear                clear the screen\n"
           "  sleep <ms>           wait\n"
           "  halt [code]          stop the machine\n"
-          "  reboot               reset the machine\n");
+          "  reboot               reset the machine\n"
+          "Ctrl-C stops the program running in the foreground.\n");
 }
 
 static void cmd_ls(void)
@@ -148,7 +154,7 @@ static void run(const char *prog, char *rest)
         return;
     }
     int code = sys_wait(pid);
-    if (code != 0)
+    if (code != 0 && code != EXIT_INTERRUPTED)
         printf("%s exited with %d\n", prog, code);
 }
 

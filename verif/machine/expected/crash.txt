@@ -31,5 +31,5 @@ crash: fault 6
 crash exited with -1
 [92mstrata[0m> ps
   pid  state  slot  cycles       name
-    1  ready     0  34974        shell
+    1  ready     0  34919        shell
 [92mstrata[0m> halt 4

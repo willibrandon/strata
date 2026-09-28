@@ -165,6 +165,24 @@ void task_kill(struct task *t, const char *why)
     task_exit(t, -1);
 }
 
+/* Ctrl-C on the terminal: ends the program the shell is waiting for. When
+ * the shell is not waiting for one, it gets the key and discards its line. */
+void task_interrupt(void)
+{
+    for (int i = 0; i < MAX_TASKS; i++) {
+        struct task *s = &tasks[i];
+        if (s->state != T_WAITING || s->parent != 0)
+            continue;
+        struct task *fg = task_by_pid(s->wait_pid);
+        if (fg && fg->state != T_ZOMBIE) {
+            kprintf("^C\n");
+            task_exit(fg, EXIT_INTERRUPTED);
+            return;
+        }
+    }
+    input_put(0x03);
+}
+
 void task_block(struct task *t, int state)
 {
     t->state = state;

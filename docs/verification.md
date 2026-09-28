@@ -109,7 +109,7 @@ All 21 modules pass, 10,211 equivalence points proven, none unproven.
 gate-level model side by side from the same inputs and compares every output
 of `strata_soc` (pins, memory ports, the trace port) in every cycle; the first
 difference stops the run with the signal and cycle. The ISA suites and the
-`shell_tour` whole-machine session (10.75 million cycles: boot, shell,
+`shell_tour` whole-machine session (10.82 million cycles: boot, shell,
 programs, faults and the game) run in lockstep with no difference.
 
 ### Netlist versus layout
@@ -153,6 +153,7 @@ source.
 | `shell_tour` | lockstep | shell commands, programs, fault containment, game benchmark |
 | `multitask` | gate | a background task counting on the LEDs while the shell runs |
 | `crash` | gate | all six kinds of user fault reported and contained |
+| `interrupt` | gate | Ctrl-C stops a foreground program and the game (which gives the screen back) and discards a line at the prompt |
 | `game` | gate | the game played with the board buttons, screens while playing and paused |
 | `blocks_bench` | RTL | CPU-bound run of the computer player, 40 pieces |
 | `uart_boot` | RTL | no kernel in the flash: kernel loaded over the serial line |

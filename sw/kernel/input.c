@@ -1,7 +1,8 @@
 /*
  * Keyboard and button input. Bytes from the terminal and button presses are
  * turned into key codes (ASCII or KEY_*) and queued. ANSI cursor-key
- * sequences (ESC [ A..D) become KEY_UP..KEY_LEFT.
+ * sequences (ESC [ A..D) become KEY_UP..KEY_LEFT. Ctrl-C is not queued: it
+ * is recorded and handled by task_interrupt() at the end of the trap.
  */
 #include "kernel.h"
 
@@ -10,6 +11,7 @@
 static uint16_t queue[QSIZE];
 static unsigned head, tail;
 static int esc_state;   /* 0 idle, 1 after ESC, 2 after ESC [ */
+static int interrupt_pending;
 
 static void put(int key)
 {
@@ -42,6 +44,8 @@ void input_uart_byte(int c)
     default:
         if (c == 0x1B)
             esc_state = 1;
+        else if (c == 0x03)
+            interrupt_pending = 1;
         else
             put(c == '\r' ? '\n' : c);
     }
@@ -61,6 +65,19 @@ void input_poll(void)
     int c;
     while ((c = uart_getc()) >= 0)
         input_uart_byte(c);
+}
+
+void input_put(int key)
+{
+    put(key);
+}
+
+/* Whether Ctrl-C arrived since the last call. */
+int input_take_interrupt(void)
+{
+    int p = interrupt_pending;
+    interrupt_pending = 0;
+    return p;
 }
 
 int input_available(void)

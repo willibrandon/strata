@@ -9,10 +9,10 @@ Type 'help' for commands.
 [2] counter
 [92mstrata[0m> ps
   pid  state  slot  cycles       name
-    1  ready     0  8662         shell
+    1  ready     0  8784         shell
     2  sleep     2  290          counter
 [92mstrata[0m> ps
   pid  state  slot  cycles       name
-    1  ready     0  20059        shell
+    1  ready     0  20035        shell
     2  sleep     2  868          counter
 [92mstrata[0m> halt 3

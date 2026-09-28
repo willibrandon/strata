@@ -55,6 +55,7 @@ void task_yield(void);
 struct task *schedule(void);
 void task_block(struct task *t, int state);
 void task_grant_screen(struct task *t, int on);
+void task_interrupt(void);
 
 /* ---------------------------------------------------------------- program store */
 int  store_init(void);
@@ -93,6 +94,8 @@ void input_buttons(uint32_t pressed);
 int  input_get(void);                     /* key code or -1 */
 int  input_available(void);
 void input_poll(void);
+void input_put(int key);
+int  input_take_interrupt(void);
 
 /* ---------------------------------------------------------------- console */
 void console_init(void);
