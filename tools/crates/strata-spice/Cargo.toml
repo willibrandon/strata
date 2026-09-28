@@ -1,0 +1,11 @@
+[package]
+name = "strata-spice"
+description = "Transistor-level analysis of the sky130 standard cells with ngspice, compared with their Liberty models"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+strata-netlist = { path = "../strata-netlist" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

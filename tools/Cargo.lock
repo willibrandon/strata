@@ -2848,8 +2848,10 @@ dependencies = [
  "strata-debug",
  "strata-gate",
  "strata-isa",
+ "strata-layout",
  "strata-netlist",
  "strata-sim",
+ "strata-spice",
 ]
 
 [[package]]
@@ -2876,6 +2878,10 @@ dependencies = [
 
 [[package]]
 name = "strata-isa"
+version = "0.1.0"
+
+[[package]]
+name = "strata-layout"
 version = "0.1.0"
 
 [[package]]
@@ -2909,6 +2915,15 @@ name = "strata-sim"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "strata-spice"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "strata-netlist",
 ]
 
 [[package]]
