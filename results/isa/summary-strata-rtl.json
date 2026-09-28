@@ -1,0 +1,34 @@
+{
+  "category": "simulated",
+  "engine": "rtl",
+  "suite": "strata",
+  "counts": {
+    "PASS": 4
+  },
+  "results": [
+    {
+      "test": "strata-counters",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.19
+    },
+    {
+      "test": "strata-faults",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.19
+    },
+    {
+      "test": "strata-irq",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.32
+    },
+    {
+      "test": "strata-pmp",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.18
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+--target=riscv32-unknown-elf
+-march=rv32i_zicsr_zifencei
+-mabi=ilp32
+-D__ASSEMBLER__
+-I../../sw/include
+-I.

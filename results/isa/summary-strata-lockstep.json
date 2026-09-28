@@ -1,0 +1,40 @@
+{
+  "category": "simulated",
+  "engine": "lockstep",
+  "suite": "strata",
+  "counts": {
+    "PASS": 5
+  },
+  "results": [
+    {
+      "test": "strata-counters",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.21
+    },
+    {
+      "test": "strata-csr",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.17
+    },
+    {
+      "test": "strata-faults",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.21
+    },
+    {
+      "test": "strata-irq",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 7.4
+    },
+    {
+      "test": "strata-pmp",
+      "status": "PASS",
+      "detail": "halt code 0",
+      "seconds": 0.19
+    }
+  ]
+}
