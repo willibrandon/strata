@@ -414,6 +414,12 @@ pub fn map(p: &Program) -> String {
             let _ = writeln!(out, "        0x{:08x}  {}", sym.addr, sym.name);
         }
     }
+    if !p.gc_removed.is_empty() {
+        let _ = writeln!(out, "\nDiscarded by --gc-sections:");
+        for r in &p.gc_removed {
+            let _ = writeln!(out, "    0x{:08x}  {}({})", r.size, r.path, r.name);
+        }
+    }
     let _ = writeln!(out, "\nSymbols:");
     for s in &p.symbols {
         let sec = s.section.map_or("*ABS*", |i| p.sections[i].name.as_str());

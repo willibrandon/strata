@@ -13,12 +13,13 @@ BUILD  := $(ROOT)/build/sw
 LLVM   ?= /opt/homebrew/opt/llvm/bin
 CC     := $(LLVM)/clang
 AS     := $(ROOT)/tools/target/release/strata-as
+LDFLAGS := --gc-sections
 PACK   := $(ROOT)/tools/target/release/strata-pack
 PYTHON ?= python3
 
 TARGET   := --target=riscv32-unknown-elf -march=rv32i_zicsr_zifencei -mabi=ilp32
 CFLAGS   := $(TARGET) -mno-relax -mcmodel=medlow -fno-pic -ffreestanding -fno-builtin -nostdlib \
-            -fno-asynchronous-unwind-tables -fno-unwind-tables -Os -gline-tables-only \
+            -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -Os -gline-tables-only \
             -std=gnu11 -Wall -Wextra -Werror -Iinclude -Ikernel
 CPPFLAGS := $(TARGET) -Iinclude
 
@@ -34,11 +35,11 @@ all: $(BUILD)/boot/boot.hex $(BUILD)/flash.bin
 
 # ---------------------------------------------------------------- compile rules
 # .c -> .s (clang), .S -> .s (clang preprocessor, keeping line markers)
-$(BUILD)/obj/%.c.s: %.c | tools
+$(BUILD)/obj/%.c.s: %.c Makefile | tools
 	@mkdir -p $(dir $@)
 	@echo "  CC   $<"; $(CC) $(CFLAGS) -S $< -o $@
 
-$(BUILD)/obj/%.S.s: %.S
+$(BUILD)/obj/%.S.s: %.S Makefile
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) -E -x assembler-with-cpp $< -o $@
 
@@ -65,7 +66,7 @@ $(BUILD)/obj/font.c.s: $(BUILD)/obj/font.c
 KERNEL_OBJS := $(call objs,$(KERNEL)) $(BUILD)/obj/font.c.s
 
 $(BUILD)/kernel/kernel.bin: $(KERNEL_OBJS) $(BUILD)/kernel/kernel.ld | tools
-	$(AS) -T $(BUILD)/kernel/kernel.ld -o $(BUILD)/kernel/kernel.elf --bin $@ \
+	$(AS) $(LDFLAGS) -T $(BUILD)/kernel/kernel.ld -o $(BUILD)/kernel/kernel.elf --bin $@ \
 	    --debug $(BUILD)/kernel/kernel.sdb --listing $(BUILD)/kernel/kernel.lst \
 	    --map $(BUILD)/kernel/kernel.map $(KERNEL_OBJS)
 
@@ -85,7 +86,7 @@ $(BUILD)/user/$(NAME)/crt0.s: user/crt0.S include/strata/layout.h
 	$(CC) $(CPPFLAGS) -DPROG_NAME='"$(NAME)"' -E -x assembler-with-cpp $$< -o $$@
 
 $(BUILD)/user/$(NAME)/$(NAME).bin: $(BUILD)/user/$(NAME)/crt0.s $(call objs,user/$(NAME).c user/ulib.c $(LIB)) $(BUILD)/user/$(NAME)/user.ld | tools
-	$(AS) -T $(BUILD)/user/$(NAME)/user.ld -o $(BUILD)/user/$(NAME)/$(NAME).elf --bin $$@ \
+	$(AS) $(LDFLAGS) -T $(BUILD)/user/$(NAME)/user.ld -o $(BUILD)/user/$(NAME)/$(NAME).elf --bin $$@ \
 	    --debug $(BUILD)/user/$(NAME)/$(NAME).sdb --listing $(BUILD)/user/$(NAME)/$(NAME).lst \
 	    --map $(BUILD)/user/$(NAME)/$(NAME).map \
 	    $(BUILD)/user/$(NAME)/crt0.s $(call objs,user/$(NAME).c user/ulib.c $(LIB))

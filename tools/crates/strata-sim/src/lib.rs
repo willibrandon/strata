@@ -12,6 +12,7 @@ pub mod machine;
 pub mod mem;
 pub mod ports;
 pub mod retire;
+pub mod script;
 
 pub use engine::Engine;
 pub use lockstep::{Lockstep, Mismatch};

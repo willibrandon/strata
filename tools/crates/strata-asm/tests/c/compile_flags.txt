@@ -1,0 +1,6 @@
+--target=riscv32-unknown-elf
+-march=rv32i_zicsr_zifencei
+-mabi=ilp32
+-ffreestanding
+-nostdlib
+-std=gnu11

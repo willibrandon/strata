@@ -40,6 +40,10 @@ strata-as [options] <input.s>...
       --debug <file>      debug information (JSON, see below)
       --listing <file>    listing: address, encoding, source text per line
       --map <file>        placement of every input section and symbol
+      --gc-sections       remove input sections not reachable from the entry
+                          symbol, KEEP() layout patterns or --keep-symbol
+      --keep-symbol <sym> with --gc-sections, also keep the section defining
+                          <sym> (repeatable)
   -I <dir>                search directory for .include / .incbin
   -D <sym>=<value>        define an absolute symbol before assembly
 ```
@@ -169,12 +173,33 @@ define __stack_top = ORIGIN(RAM) + LENGTH(RAM)
   alignment)`. Patterns are globs (`*`, `?`) over input section names; an
   input section goes to the first output section with a matching pattern.
   Input sections keep command-line file order within an output section.
+* A pattern may be written `KEEP(pattern)` (several patterns may share one
+  `KEEP(...)`), e.g. `output .text in SLOT { KEEP(.text.header) .text .text.* }`.
+  It matches and places exactly like the plain pattern, and additionally
+  makes the matching input sections roots for `--gc-sections`.
+  `KEEP(COMMON)` keeps all common symbols.
 * `define SYM = EXPR` where `EXPR` may use numbers, defined symbols,
   `START(sec)`, `END(sec)`, `SIZE(sec)`, `ORIGIN(region)`, `LENGTH(region)`,
   `ALIGN(expr, n)`, and `+ - * / & |`.
 * `entry SYM` names the entry point.
 * An input section with contents that matches no rule, or content that
   overflows its region, is an error.
+
+With `--gc-sections`, only input sections reachable from the roots are
+linked. The roots are the section defining the entry symbol (`entry SYM`,
+or `_start` if the layout names none), every input section matched by a
+`KEEP` pattern, and the sections defining the `--keep-symbol` symbols. A
+live section makes another section live when any of its relocations or
+symbol references resolves to it: instruction operands, `%hi`/`%lo`,
+`%pcrel_hi`/`%pcrel_lo`, `call`/`la`/load/store pseudo-instructions, data
+words, and both symbols of a label difference. References are followed
+through `.set` symbols, common symbols (each is its own section), and
+`define`s that name program symbols. NOBITS sections take part like any
+other. Removed sections do not appear in any output (image, ELF, listing,
+`.sdb` symbols and line tables); the map lists them under "Discarded by
+--gc-sections". References made only from removed sections are never
+resolved, so they may be undefined, and only live sections need a matching
+output rule. It is an error if there are no roots.
 
 ### Debug information (`.sdb`)
 

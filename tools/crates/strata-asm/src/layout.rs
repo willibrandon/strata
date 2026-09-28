@@ -36,10 +36,30 @@ pub struct OutputRule {
     pub align: u64,
     /// Holds no file bytes (`nobits`).
     pub nobits: bool,
-    /// Glob patterns over input section names; `COMMON` selects common symbols.
-    pub patterns: Vec<String>,
+    /// Patterns over input section names, in placement order.
+    pub patterns: Vec<Pattern>,
     /// Where it was declared.
     pub loc: Loc,
+}
+
+/// One pattern of an output rule.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Pattern {
+    /// Glob over input section names (`*`, `?`); `COMMON` selects common symbols.
+    pub glob: String,
+    /// Written as `KEEP(glob)`: matching input sections are roots of
+    /// `--gc-sections` (they match and are placed like any other pattern).
+    pub keep: bool,
+}
+
+impl Pattern {
+    /// An ordinary (non-`KEEP`) pattern.
+    pub fn new(glob: &str) -> Pattern {
+        Pattern {
+            glob: glob.to_string(),
+            keep: false,
+        }
+    }
 }
 
 /// Expression of a `define` statement.
@@ -95,7 +115,7 @@ impl Layout {
             at: None,
             align: 1,
             nobits,
-            patterns: pats.iter().map(|s| s.to_string()).collect(),
+            patterns: pats.iter().map(|s| Pattern::new(s)).collect(),
             loc,
         };
         Layout {
@@ -430,6 +450,55 @@ pub fn parse_layout(text: &str, file: FileId, diags: &mut Diags) -> Option<Layou
     ok.then_some(layout)
 }
 
+/// Parses the patterns of an output rule after its `{`, up to and including
+/// the closing `}`: glob words, and `KEEP(glob...)` groups.
+fn pattern_list(c: &mut Cursor) -> PResult<Vec<Pattern>> {
+    let mut patterns = Vec::new();
+    // Location of an open `KEEP(` and the pattern count when it opened.
+    let mut keep: Option<(Loc, usize)> = None;
+    loop {
+        c.skip(true);
+        match c.peek() {
+            None => return c.err("missing '}'"),
+            Some(b'}') => {
+                if let Some((loc, _)) = keep {
+                    return Err((loc, "KEEP( is missing its ')'".to_string()));
+                }
+                c.pos += 1;
+                return Ok(patterns);
+            }
+            Some(b')') if keep.is_some() => {
+                let (loc, count) = keep.take().unwrap_or_default();
+                if patterns.len() == count {
+                    return Err((loc, "KEEP() needs at least one pattern".to_string()));
+                }
+                c.pos += 1;
+            }
+            Some(b'(' | b')') => return c.err("unexpected parenthesis in the pattern list"),
+            Some(_) => {
+                let loc = c.loc();
+                let start = c.pos;
+                while c
+                    .peek()
+                    .is_some_and(|ch| !ch.is_ascii_whitespace() && !b"{}()#".contains(&ch))
+                {
+                    c.pos += 1;
+                }
+                let word = String::from_utf8_lossy(&c.s[start..c.pos]).into_owned();
+                if word == "KEEP" && keep.is_none() {
+                    c.expect(b'(')?;
+                    keep = Some((loc, patterns.len()));
+                } else {
+                    patterns.push(Pattern {
+                        glob: word,
+                        keep: keep.is_some(),
+                    });
+                }
+            }
+        }
+    }
+}
+
 fn statement(c: &mut Cursor, layout: &mut Layout) -> PResult<()> {
     let loc = c.loc();
     let kw = c.expect_word("'memory', 'output', 'define' or 'entry'")?;
@@ -533,27 +602,7 @@ fn statement(c: &mut Cursor, layout: &mut Layout) -> PResult<()> {
                     _ => return Err((kloc, format!("unknown output attribute '{key}'"))),
                 }
             }
-            let mut patterns = Vec::new();
-            loop {
-                c.skip(true);
-                match c.peek() {
-                    None => return c.err("missing '}'"),
-                    Some(b'}') => {
-                        c.pos += 1;
-                        break;
-                    }
-                    Some(_) => {
-                        let start = c.pos;
-                        while c
-                            .peek()
-                            .is_some_and(|ch| !ch.is_ascii_whitespace() && ch != b'}' && ch != b'#')
-                        {
-                            c.pos += 1;
-                        }
-                        patterns.push(String::from_utf8_lossy(&c.s[start..c.pos]).into_owned());
-                    }
-                }
-            }
+            let patterns = pattern_list(c)?;
             layout.outputs.push(OutputRule {
                 name,
                 region,
@@ -603,13 +652,13 @@ define __stack_top = ORIGIN(RAM) + LENGTH(RAM)
         assert_eq!(l.entry.as_ref().map(|e| e.0.as_str()), Some("_start"));
         assert_eq!(l.outputs.len(), 4);
         assert_eq!(
-            l.outputs[0].patterns,
+            globs(&l.outputs[0].patterns),
             vec![".text.start", ".text", ".text.*"]
         );
         assert_eq!(l.outputs[1].align, 4);
         assert!(l.outputs[3].nobits);
         assert_eq!(
-            l.outputs[3].patterns.last().map(String::as_str),
+            l.outputs[3].patterns.last().map(|p| p.glob.as_str()),
             Some("COMMON")
         );
         assert_eq!(l.defines.len(), 3);
@@ -631,7 +680,52 @@ define __stack_top = ORIGIN(RAM) + LENGTH(RAM)
         assert_eq!(l.regions[1].origin, 0x1000_0000);
         assert_eq!(l.regions[1].length, 1 << 20);
         assert_eq!(l.outputs[0].at, Some(0x100));
-        assert_eq!(l.outputs[0].patterns, vec![".text", ".text.*"]);
+        assert_eq!(globs(&l.outputs[0].patterns), vec![".text", ".text.*"]);
+    }
+
+    fn globs(p: &[Pattern]) -> Vec<&str> {
+        p.iter().map(|p| p.glob.as_str()).collect()
+    }
+
+    #[test]
+    fn keep_patterns() {
+        let text = "memory S origin=0 length=8K\noutput .text in S { KEEP(.text.header) .text KEEP( .init .fini\n) .text.* }\n";
+        let mut d = Diags::new();
+        let l = parse_layout(text, FileId(0), &mut d).expect("parses");
+        let pats: Vec<(&str, bool)> = l.outputs[0]
+            .patterns
+            .iter()
+            .map(|p| (p.glob.as_str(), p.keep))
+            .collect();
+        assert_eq!(
+            pats,
+            vec![
+                (".text.header", true),
+                (".text", false),
+                (".init", true),
+                (".fini", true),
+                (".text.*", false)
+            ]
+        );
+        for (bad, msg) in [
+            ("output .t in S { KEEP(.x }", "missing its ')'"),
+            ("output .t in S { KEEP() }", "at least one pattern"),
+            ("output .t in S { KEEP .x }", "expected '('"),
+            ("output .t in S { .a) }", "unexpected parenthesis"),
+        ] {
+            let mut d = Diags::new();
+            assert!(parse_layout(
+                &format!("memory S origin=0 length=8K\n{bad}\n"),
+                FileId(0),
+                &mut d
+            )
+            .is_none());
+            assert!(
+                d.list.iter().any(|x| x.message.contains(msg)),
+                "{bad}: {:?}",
+                d.list
+            );
+        }
     }
 
     #[test]

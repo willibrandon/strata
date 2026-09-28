@@ -494,7 +494,7 @@ fn listing_and_map() {
         "RAM",
         ".text.start",
         "main.s(.rodata.str1.1)",
-        "COMMON(COMMON)",
+        "COMMON(pool)",
         "__stack_top",
         "pool",
     ] {

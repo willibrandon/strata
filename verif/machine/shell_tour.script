@@ -1,0 +1,17 @@
+# Boot, then exercise the shell, the program store, isolation and the game.
+expect strata>
+send help\n
+expect strata>
+send ls\n
+expect strata>
+send hello 7\n
+expect strata>
+send info\n
+expect strata>
+send crash 3\n
+expect strata>
+send ps\n
+expect strata>
+send blocks 20\n
+expect strata>
+send halt 42\n

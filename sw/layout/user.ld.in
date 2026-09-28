@@ -3,7 +3,7 @@
 memory SLOT origin=@BASE@ length=@SIZE@
 entry _start
 
-output .text   in SLOT { .text.header .text .text.* }
+output .text   in SLOT { KEEP(.text.header) .text .text.* }
 output .rodata in SLOT align=4 { .rodata .rodata.* .srodata .srodata.* }
 output .data   in SLOT align=4 { .data .data.* .sdata .sdata.* }
 output .bss    in SLOT align=4 nobits { .bss .bss.* .sbss .sbss.* COMMON }

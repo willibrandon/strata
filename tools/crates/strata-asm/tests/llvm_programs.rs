@@ -19,6 +19,15 @@
 //! --debug-line` of the lld output): every row's address, line, column,
 //! file and `is_stmt`, and the end of every sequence (which `.sdb` marks
 //! with a `line == 0` row).
+//!
+//! A second test compiles with `-ffunction-sections -fdata-sections` and
+//! links with `--gc-sections` against `ld.lld --gc-sections`, using layouts
+//! with `KEEP()` roots and, in one configuration, `--keep-symbol` (lld's
+//! `--undefined`). Besides bytes, symbols, disassembly and line rows (of
+//! live code; lld keeps rows of removed functions at tombstone addresses),
+//! the set of removed sections must equal lld's `--print-gc-sections`.
+//! With `-O0`, lld keeps `SHF_MERGE` string sections whole, as strata-as
+//! does; with merging enabled lld would also drop individual dead strings.
 
 mod common;
 
@@ -60,11 +69,12 @@ fn c_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/c")
 }
 
-/// Compiles `name.c` into `dir/name.s`.
-fn compile(clang: &Path, dir: &Path, name: &str) -> PathBuf {
+/// Compiles `name.c` into `dir/name.s`, adding `extra` flags.
+fn compile(clang: &Path, dir: &Path, name: &str, extra: &[&str]) -> PathBuf {
     let out = dir.join(format!("{name}.s"));
     run(Command::new(clang)
         .args(CLANG_FLAGS)
+        .args(extra)
         .arg(c_dir().join(format!("{name}.c")))
         .arg("-o")
         .arg(&out));
@@ -202,7 +212,10 @@ struct Tools {
 /// table rows compared.
 fn check_program(t: &Tools, name: &str, units: &[&str], org: u32) -> (usize, usize) {
     let dir = scratch(&format!("llvm_programs_{name}_{org:x}"));
-    let mut asm_files: Vec<PathBuf> = units.iter().map(|u| compile(&t.clang, &dir, u)).collect();
+    let mut asm_files: Vec<PathBuf> = units
+        .iter()
+        .map(|u| compile(&t.clang, &dir, u, &[]))
+        .collect();
     asm_files.push(c_dir().join("runtime.s"));
 
     // strata-as, through the command-line binary.
@@ -374,8 +387,8 @@ fn check_program(t: &Tools, name: &str, units: &[&str], org: u32) -> (usize, usi
     (s_dis.len(), rows)
 }
 
-#[test]
-fn c_programs_match_llvm_mc_and_lld() {
+/// Locates the LLVM tools, or returns `None` (after a note) to skip `test`.
+fn find_tools(test: &str) -> Option<Tools> {
     let names = [
         "clang",
         "llvm-mc",
@@ -386,10 +399,8 @@ fn c_programs_match_llvm_mc_and_lld() {
         "llvm-readelf",
         "llvm-dwarfdump",
     ];
-    let Some(found) = tools("c_programs_match_llvm_mc_and_lld", &names) else {
-        return;
-    };
-    let t = Tools {
+    let found = tools(test, &names)?;
+    Some(Tools {
         clang: found[0].clone(),
         mc: found[1].clone(),
         lld: found[2].clone(),
@@ -398,6 +409,13 @@ fn c_programs_match_llvm_mc_and_lld() {
         nm: found[5].clone(),
         readelf: found[6].clone(),
         dwarfdump: found[7].clone(),
+    })
+}
+
+#[test]
+fn c_programs_match_llvm_mc_and_lld() {
+    let Some(t) = find_tools("c_programs_match_llvm_mc_and_lld") else {
+        return;
     };
     let (mut insns, mut rows, mut links) = (0, 0, 0);
     let mut check = |name: &str, units: &[&str], org: u32| {
@@ -421,4 +439,245 @@ fn c_programs_match_llvm_mc_and_lld() {
         check(unit, &order, 0x1000_0000);
     }
     eprintln!("whole-program comparison: {links} links, {insns} instructions and {rows} line-table rows identical");
+}
+
+/// strata-as layout for the `--gc-sections` comparison.
+const GC_LAYOUT: &str = "
+memory RAM origin=0x10000000 length=1M
+entry _start
+output .text   in RAM { KEEP(.text.start) KEEP(.text.gc_root) .text .text.* }
+output .rodata in RAM { .rodata .rodata.* .srodata .srodata.* }
+output .data   in RAM { .data .data.* .sdata .sdata.* }
+output .bss    in RAM nobits { .bss .bss.* .sbss .sbss.* COMMON }
+";
+
+/// The equivalent ld.lld linker script.
+const GC_SCRIPT: &str = "
+SECTIONS {
+  . = 0x10000000;
+  .text   : { KEEP(*(.text.start)) KEEP(*(.text.gc_root)) *(.text) *(.text.*) }
+  .rodata : { *(.rodata) *(.rodata.*) *(.srodata) *(.srodata.*) }
+  .data   : { *(.data) *(.data.*) *(.sdata) *(.sdata.*) }
+  .bss    : { *(.bss) *(.bss.*) *(.sbss) *(.sbss.*) *(COMMON) }
+  /DISCARD/ : { *(.riscv.attributes) *(.comment) *(.note*) *(.llvm_addrsig) }
+}
+";
+
+/// File name of a path.
+fn file_name(p: &Path) -> String {
+    p.file_name()
+        .map_or(String::new(), |n| n.to_string_lossy().into_owned())
+}
+
+/// `name -> size` of the sections of an object file.
+fn object_section_sizes(readelf: &Path, obj: &Path) -> std::collections::HashMap<String, u64> {
+    run(Command::new(readelf).arg("-SW").arg(obj))
+        .lines()
+        .filter_map(|l| {
+            let rest = l.trim_start().strip_prefix('[')?.split_once(']')?.1;
+            let f: Vec<&str> = rest.split_whitespace().collect();
+            Some((
+                (*f.first()?).to_string(),
+                u64::from_str_radix(f.get(4)?, 16).ok()?,
+            ))
+        })
+        .collect()
+}
+
+/// Links the units plus the runtime with `--gc-sections` both ways and
+/// compares the results. Returns (instructions, line rows, removed sections).
+fn check_gc_program(t: &Tools, name: &str, units: &[&str], keep: &[&str]) -> (usize, usize, usize) {
+    let dir = scratch(&format!("llvm_gc_{name}"));
+    let mut asm_files: Vec<PathBuf> = units
+        .iter()
+        .map(|u| {
+            compile(
+                &t.clang,
+                &dir,
+                u,
+                &["-ffunction-sections", "-fdata-sections"],
+            )
+        })
+        .collect();
+    asm_files.push(c_dir().join("runtime.s"));
+
+    let layout = dir.join("gc.ld");
+    std::fs::write(&layout, GC_LAYOUT).unwrap();
+    let (s_elf, s_bin, s_sdb, s_map) = (
+        dir.join("strata.elf"),
+        dir.join("strata.bin"),
+        dir.join("strata.sdb"),
+        dir.join("strata.map"),
+    );
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_strata-as"));
+    cmd.arg("-T").arg(&layout).arg("--gc-sections");
+    for k in keep {
+        cmd.arg("--keep-symbol").arg(k);
+    }
+    cmd.arg("-o")
+        .arg(&s_elf)
+        .arg("--bin")
+        .arg(&s_bin)
+        .arg("--debug")
+        .arg(&s_sdb)
+        .arg("--map")
+        .arg(&s_map);
+    let (ok, _, stderr) = run_status(cmd.args(&asm_files));
+    assert!(
+        ok && stderr.is_empty(),
+        "strata-as failed for {name}:\n{stderr}"
+    );
+
+    let mut objs = Vec::new();
+    for (i, s) in asm_files.iter().enumerate() {
+        let o = dir.join(format!("{i}.o"));
+        run(Command::new(&t.mc)
+            .args(common::MC_ARGS)
+            .arg("-filetype=obj")
+            .arg(s)
+            .arg("-o")
+            .arg(&o));
+        objs.push(o);
+    }
+    let script = dir.join("gc_lld.ld");
+    std::fs::write(&script, GC_SCRIPT).unwrap();
+    let (l_elf, l_bin) = (dir.join("lld.elf"), dir.join("lld.bin"));
+    let mut cmd = Command::new(&t.lld);
+    cmd.args([
+        "-O0",
+        "--image-base=0",
+        "-e",
+        "_start",
+        "--gc-sections",
+        "--print-gc-sections",
+        "-T",
+    ])
+    .arg(&script);
+    for k in keep {
+        cmd.arg(format!("--undefined={k}"));
+    }
+    let (ok, out, err) = run_status(cmd.args(&objs).arg("-o").arg(&l_elf));
+    assert!(ok, "ld.lld failed:\n{err}");
+    run(Command::new(&t.objcopy)
+        .args(["-O", "binary"])
+        .arg(&l_elf)
+        .arg(&l_bin));
+
+    // Same placement, bytes, symbols and code.
+    let placement = sections(&t.readelf, &s_elf);
+    assert_eq!(
+        placement,
+        sections(&t.readelf, &l_elf),
+        "{name}: section placement differs"
+    );
+    let (s_bytes, l_bytes) = (
+        std::fs::read(&s_bin).unwrap(),
+        std::fs::read(&l_bin).unwrap(),
+    );
+    if s_bytes != l_bytes {
+        let first = s_bytes
+            .iter()
+            .zip(&l_bytes)
+            .position(|(a, b)| a != b)
+            .unwrap_or(s_bytes.len().min(l_bytes.len()));
+        panic!(
+            "{name}: loaded bytes differ at offset {first:#x} (strata {} bytes, lld {} bytes)",
+            s_bytes.len(),
+            l_bytes.len()
+        );
+    }
+    assert_eq!(
+        symbols(&t.nm, &s_elf),
+        symbols(&t.nm, &l_elf),
+        "{name}: symbol tables differ"
+    );
+    let s_dis = disassembly(&t.objdump, &s_elf);
+    assert_eq!(
+        s_dis,
+        disassembly(&t.objdump, &l_elf),
+        "{name}: disassembly differs"
+    );
+
+    // Same removed sections: the map's list versus lld's report, ignoring the
+    // empty sections lld also reports (clang's `.text` of each unit).
+    let ours: BTreeSet<String> = std::fs::read_to_string(&s_map)
+        .unwrap()
+        .split("Discarded by --gc-sections:")
+        .nth(1)
+        .unwrap_or("")
+        .lines()
+        .skip(1)
+        .take_while(|l| !l.trim().is_empty())
+        .filter_map(|l| l.split_whitespace().nth(1))
+        .map(|entry| entry.rsplit('/').next().unwrap_or(entry).to_string())
+        .collect();
+    let sizes: Vec<_> = objs
+        .iter()
+        .map(|o| object_section_sizes(&t.readelf, o))
+        .collect();
+    let theirs: BTreeSet<String> = format!("{out}{err}")
+        .lines()
+        .filter_map(|l| l.strip_prefix("removing unused section "))
+        .filter_map(|entry| {
+            let (obj, sec) = entry.split_once(":(")?;
+            let sec = sec.strip_suffix(')')?;
+            let index: usize = file_name(Path::new(obj)).strip_suffix(".o")?.parse().ok()?;
+            (sizes[index].get(sec).copied().unwrap_or(0) > 0)
+                .then(|| format!("{}({sec})", file_name(&asm_files[index])))
+        })
+        .collect();
+    assert_eq!(ours, theirs, "{name}: removed sections differ");
+
+    // Line rows of live code match; lld keeps rows of removed functions at
+    // tombstone addresses outside the program, which are ignored.
+    let info = DebugInfo::from_json(&std::fs::read_to_string(&s_sdb).unwrap()).unwrap();
+    let text = placement
+        .iter()
+        .find(|s| s.0 == ".text")
+        .expect("text section");
+    let (lo, hi) = (text.1 as u32, (text.1 + text.2) as u32);
+    let mut rows: Vec<Row> = info
+        .lines
+        .iter()
+        .map(|&(addr, file, line, col, is_stmt)| {
+            (
+                addr,
+                line,
+                col,
+                base_name(&info.files[file as usize]),
+                is_stmt != 0,
+            )
+        })
+        .collect();
+    rows.sort();
+    let dwarf: Vec<Row> = dwarf_rows(&t.dwarfdump, &l_elf)
+        .into_iter()
+        .filter(|r| (lo..=hi).contains(&r.0))
+        .collect();
+    assert_eq!(rows, dwarf, "{name}: line tables differ");
+    (s_dis.len(), rows.len(), ours.len())
+}
+
+#[test]
+fn gc_sections_match_lld() {
+    let Some(t) = find_tools("gc_sections_match_lld") else {
+        return;
+    };
+    let units = ["sort", "kernel", "math64", "gc"];
+    let (i1, r1, d1) = check_gc_program(&t, "roots", &units, &[]);
+    let (i2, r2, d2) = check_gc_program(&t, "keep_symbol", &units, &["dead_entry"]);
+    // Keeping dead_entry revives it and what it reaches (the cycle, its data).
+    assert!(d1 >= 15, "only {d1} sections removed");
+    assert!(d2 < d1 && i2 > i1);
+    let reordered = ["gc", "math64", "kernel", "sort"];
+    let (i3, r3, d3) = check_gc_program(&t, "reordered", &reordered, &[]);
+    assert_eq!((i3, d3), (i1, d1));
+    eprintln!(
+        "gc comparison: 3 links, {} instructions, {} line rows identical; {} + {} + {} removed sections identical to ld.lld",
+        i1 + i2 + i3,
+        r1 + r2 + r3,
+        d1,
+        d2,
+        d3
+    );
 }

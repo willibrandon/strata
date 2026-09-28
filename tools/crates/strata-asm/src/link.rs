@@ -4,7 +4,7 @@
 
 use crate::diag::{Diags, FileId, Loc};
 use crate::expr::{self, Env, SecRef, SymId, Value};
-use crate::layout::{align_up_i64, bin, glob_match, LExpr, Layout};
+use crate::layout::{align_up_i64, bin, glob_match, LExpr, Layout, Pattern};
 use crate::object::{Bind, FixKind, Fixup, Object, SecFlags, Section, SymDef, SymKind, Symbol};
 use std::collections::HashMap;
 use strata_isa::encode::{
@@ -152,6 +152,30 @@ pub struct Program {
     pub listing: Vec<Vec<ListingLine>>,
     /// Usage of every memory region.
     pub regions: Vec<RegionUse>,
+    /// Non-empty input sections removed by `--gc-sections`.
+    pub gc_removed: Vec<RemovedSection>,
+}
+
+/// An input section removed by `--gc-sections`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemovedSection {
+    /// Input file path (`COMMON` for common symbols).
+    pub path: String,
+    /// Section name (the symbol name for common symbols).
+    pub name: String,
+    /// Size in bytes.
+    pub size: u64,
+}
+
+/// Linker settings.
+#[derive(Clone, Debug, Default)]
+pub struct LinkOptions {
+    /// `-D` symbols (visible to layout expressions).
+    pub defines: Vec<(String, i64)>,
+    /// Remove input sections not reachable from the roots (`--gc-sections`).
+    pub gc_sections: bool,
+    /// Extra `--gc-sections` roots: the sections defining these symbols.
+    pub keep_symbols: Vec<String>,
 }
 
 impl Program {
@@ -172,7 +196,7 @@ impl Program {
 
 /// A resolved global definition.
 #[derive(Clone, Copy, Debug)]
-enum GDef {
+pub(crate) enum GDef {
     Sym {
         obj: u32,
         sym: SymId,
@@ -194,6 +218,8 @@ struct Linker<'a> {
     sec_addr: Vec<Vec<Option<u64>>>,
     /// Output section index of every input section.
     sec_out: Vec<Vec<Option<usize>>>,
+    /// Input sections removed by `--gc-sections`.
+    removed: Vec<Vec<bool>>,
     defines: &'a [(String, i64)],
 }
 
@@ -440,22 +466,36 @@ fn collect_globals(objects: &[Object], diags: &mut Diags) -> (HashMap<String, GD
 
 /// Links `objects` (one per input file, in command-line order).
 ///
-/// `defines` are the `-D` symbols (visible to layout expressions). Returns
-/// `None` if any error was reported to `diags`.
+/// Returns `None` if any error was reported to `diags`.
 pub fn link(
     mut objects: Vec<Object>,
     layout: &Layout,
-    defines: &[(String, i64)],
+    opts: &LinkOptions,
     diags: &mut Diags,
 ) -> Option<Program> {
     let n_inputs = objects.len();
     let (mut globals, commons) = collect_globals(&objects, diags);
     let common_origin = add_common_object(&mut objects, &mut globals, &commons);
+    let matches = match_sections(&objects, layout, n_inputs);
+    let live = if opts.gc_sections {
+        let roots = crate::gc::Roots {
+            layout,
+            matches: &matches,
+            keep_symbols: &opts.keep_symbols,
+        };
+        crate::gc::live_sections(&objects, &globals, &roots, diags)
+    } else {
+        objects
+            .iter()
+            .map(|o| o.sections.iter().map(|s| !s.discarded).collect())
+            .collect()
+    };
+    let (removed, gc_removed) = removed_sections(&objects, &live);
     let Placement {
         sec_addr,
         sec_out,
         mut outs,
-    } = place_sections(&objects, layout, n_inputs, diags);
+    } = place_sections(&objects, layout, &matches, &live, diags);
     check_overlaps(&outs, diags);
     if diags.has_errors() {
         return None;
@@ -465,7 +505,8 @@ pub fn link(
         globals,
         sec_addr,
         sec_out,
-        defines,
+        removed,
+        defines: &opts.defines,
     };
     linker.define_layout_symbols(layout, &outs, diags);
     linker.apply_fixups(&mut outs, diags);
@@ -494,7 +535,34 @@ pub fn link(
         inputs,
         listing,
         regions,
+        gc_removed,
     })
+}
+
+/// Which sections `--gc-sections` removed (per object), and the non-empty
+/// ones for the map.
+fn removed_sections(
+    objects: &[Object],
+    live: &[Vec<bool>],
+) -> (Vec<Vec<bool>>, Vec<RemovedSection>) {
+    let mut flags = Vec::new();
+    let mut list = Vec::new();
+    for (obj, live) in objects.iter().zip(live) {
+        let mut per_obj = Vec::new();
+        for (sec, &is_live) in obj.sections.iter().zip(live) {
+            let removed = !sec.discarded && !is_live;
+            if removed && sec.size > 0 {
+                list.push(RemovedSection {
+                    path: obj.path.clone(),
+                    name: sec.name.clone(),
+                    size: sec.size,
+                });
+            }
+            per_obj.push(removed);
+        }
+        flags.push(per_obj);
+    }
+    (flags, list)
 }
 
 /// Turns the merged global commons into sections of a synthetic object
@@ -519,7 +587,9 @@ fn add_common_object(
         else {
             continue;
         };
-        let mut sec = Section::new("COMMON", SecFlags::parse("aw"), true, Loc::default());
+        // Named after the symbol so maps can tell common symbols apart; only
+        // the `COMMON` pattern matches sections of this object.
+        let mut sec = Section::new(name, SecFlags::parse("aw"), true, Loc::default());
         sec.size = size;
         sec.align = align.max(1);
         common_obj.sections.push(sec);
@@ -558,13 +628,49 @@ struct Placement {
     outs: Vec<OutSection>,
 }
 
-/// Assigns every input section to the first output rule with a matching
-/// pattern, orders each output section's inputs by (pattern, file, section),
-/// and assigns addresses region by region.
-fn place_sections(
+/// The first output rule and pattern that match each input section
+/// (`None` for discarded or unmatched sections). The synthetic object of
+/// common symbols (index `n_inputs`) is matched only by `COMMON`.
+fn match_sections(
     objects: &[Object],
     layout: &Layout,
     n_inputs: usize,
+) -> Vec<Vec<Option<(usize, usize)>>> {
+    objects
+        .iter()
+        .enumerate()
+        .map(|(oi, obj)| {
+            let is_common = oi == n_inputs;
+            obj.sections
+                .iter()
+                .map(|sec| {
+                    if sec.discarded {
+                        return None;
+                    }
+                    let matches = |p: &Pattern| {
+                        if is_common {
+                            p.glob == "COMMON"
+                        } else {
+                            p.glob != "COMMON" && glob_match(&p.glob, &sec.name)
+                        }
+                    };
+                    layout.outputs.iter().enumerate().find_map(|(ri, rule)| {
+                        rule.patterns.iter().position(matches).map(|pi| (ri, pi))
+                    })
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Places the live input sections: each goes to the output rule it matched,
+/// ordered by (pattern, file, section); addresses are assigned region by
+/// region.
+fn place_sections(
+    objects: &[Object],
+    layout: &Layout,
+    matches: &[Vec<Option<(usize, usize)>>],
+    live: &[Vec<bool>],
     diags: &mut Diags,
 ) -> Placement {
     let mut sec_addr: Vec<Vec<Option<u64>>> = objects
@@ -576,26 +682,14 @@ fn place_sections(
         .map(|o| vec![None; o.sections.len()])
         .collect();
     let mut members: Vec<Vec<(usize, u32, u32)>> = vec![Vec::new(); layout.outputs.len()];
+    let common_obj = objects.len() - 1;
     for (oi, obj) in objects.iter().enumerate() {
-        let is_common = oi == n_inputs;
-        for (si, sec) in obj
-            .sections
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| !s.discarded)
-        {
-            let matches = |p: &String| {
-                if is_common {
-                    p == "COMMON"
-                } else {
-                    p != "COMMON" && glob_match(p, &sec.name)
-                }
-            };
-            let rule =
-                layout.outputs.iter().enumerate().find_map(|(ri, rule)| {
-                    rule.patterns.iter().position(matches).map(|pi| (ri, pi))
-                });
-            match rule {
+        let is_common = oi == common_obj;
+        for (si, sec) in obj.sections.iter().enumerate() {
+            if !live[oi][si] {
+                continue;
+            }
+            match matches[oi][si] {
                 Some((ri, pi)) => members[ri].push((pi, oi as u32, si as u32)),
                 None if sec.size > 0 => {
                     let msg = if is_common {
@@ -879,6 +973,10 @@ impl Linker<'_> {
                 }
                 let value = match self.local_value(oi as u32, s, 0) {
                     Ok(v) => v,
+                    // A `.set` symbol whose operands are missing (for example
+                    // because --gc-sections removed them) is simply not
+                    // output; any use of it reports the error.
+                    Err(_) if matches!(s.def, SymDef::Equ(_)) => continue,
                     Err(m) => {
                         diags.error(s.def_loc.unwrap_or_default(), m);
                         continue;
@@ -1003,6 +1101,12 @@ impl Linker<'_> {
         for (oi, obj) in self.objects.iter().enumerate().take(n_inputs) {
             let mut out = Vec::new();
             for l in &obj.listing {
+                // Statements of sections removed by --gc-sections are omitted.
+                if l.place
+                    .is_some_and(|(si, _, _)| self.removed[oi][si as usize])
+                {
+                    continue;
+                }
                 let placed = l.place.and_then(|(si, off, len)| {
                     let base = self.sec_addr[oi][si as usize]?;
                     let o = &outs[self.sec_out[oi][si as usize]?];

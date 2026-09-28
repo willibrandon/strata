@@ -24,6 +24,7 @@ pub mod asm;
 pub mod cli;
 pub mod diag;
 pub mod expr;
+mod gc;
 pub mod layout;
 pub mod lexer;
 pub mod link;
@@ -66,6 +67,10 @@ pub struct Options {
     pub include_dirs: Vec<PathBuf>,
     /// `-D` symbols.
     pub defines: Vec<(String, i64)>,
+    /// Remove input sections not reachable from the roots (`--gc-sections`).
+    pub gc_sections: bool,
+    /// Extra `--gc-sections` roots (`--keep-symbol`).
+    pub keep_symbols: Vec<String>,
 }
 
 /// Result of a run: the file-name table (for rendering diagnostics), all
@@ -151,8 +156,13 @@ fn finish(
     files: FileTable,
     mut diags: Diags,
 ) -> Outcome {
+    let link_opts = link::LinkOptions {
+        defines: opts.defines.clone(),
+        gc_sections: opts.gc_sections,
+        keep_symbols: opts.keep_symbols.clone(),
+    };
     let program = match layout {
-        Some(l) if !diags.has_errors() => link::link(objects, &l, &opts.defines, &mut diags),
+        Some(l) if !diags.has_errors() => link::link(objects, &l, &link_opts, &mut diags),
         _ => None,
     };
     Outcome {

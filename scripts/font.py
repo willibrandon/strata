@@ -199,7 +199,8 @@ def c_source(glyphs: dict[int, Glyph], source: str) -> str:
         " * font RAM at 0x2001_0000 (docs/memory-map.md, VIDEO).",
         " */",
         "",
-        f"const unsigned char strata_font[{GLYPHS} * {HEIGHT}] = {{",
+        "/* Word aligned: the kernel copies it into font RAM 32 bits at a time. */",
+        f"const unsigned char strata_font[{GLYPHS} * {HEIGHT}] __attribute__((aligned(4))) = {{",
     ]
     for code in range(GLYPHS):
         row = image[code * HEIGHT:(code + 1) * HEIGHT]

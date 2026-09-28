@@ -24,6 +24,8 @@ const USAGE: &str = "usage: strata-run [options]
   --ram <hex|bin>        preload RAM (test-harness shortcut)
   --flash <file>         boot image programmed into the flash at 0x200000
   --uart-in <text>       bytes to type on the terminal (\\n for newline)
+  --script <file>        run an expect/send script (see strata-sim script.rs),
+                         then continue until halt or --max-cycles
   --uart-div <n>         terminal bit period in cycles (default 25)
   --buttons <mask>       button levels (bit 0 UP ... bit 6 START)
   --max-cycles <n>       stop after n cycles (default 10000000)
@@ -49,6 +51,7 @@ struct Args {
     ram: Option<PathBuf>,
     flash: Option<PathBuf>,
     uart_in: Option<String>,
+    script: Option<PathBuf>,
     uart_div: u32,
     buttons: u8,
     max_cycles: u64,
@@ -81,6 +84,7 @@ fn parse_args() -> Result<Args, String> {
         ram: None,
         flash: None,
         uart_in: None,
+        script: None,
         uart_div: 25,
         buttons: 0,
         max_cycles: 10_000_000,
@@ -109,6 +113,7 @@ fn parse_args() -> Result<Args, String> {
             "--ram" => a.ram = Some(val()?.into()),
             "--flash" => a.flash = Some(val()?.into()),
             "--uart-in" => a.uart_in = Some(val()?.replace("\\n", "\n")),
+            "--script" => a.script = Some(val()?.into()),
             "--uart-div" => a.uart_div = parse_num(&val()?)? as u32,
             "--buttons" => a.buttons = parse_num(&val()?)? as u8,
             "--max-cycles" => a.max_cycles = parse_num(&val()?)?,
@@ -229,7 +234,7 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
     let quiet = args.quiet;
     let mut retired = 0u64;
     let t1 = Instant::now();
-    let halted = m.run(args.max_cycles, |ev| {
+    let mut observe = |ev: &strata_sim::StepEvents| {
         if let Some(r) = &ev.retire {
             if !r.trap {
                 retired += 1;
@@ -243,7 +248,15 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
             let _ = o.write_all(&[b]);
             let _ = o.flush();
         }
-    });
+    };
+    if let Some(p) = &args.script {
+        let text = std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()))?;
+        let steps = strata_sim::script::parse(&text)?;
+        strata_sim::script::run(&mut m, &steps, args.max_cycles, |_, ev| observe(ev))
+            .map_err(|e| format!("script: {e}"))?;
+    }
+    let remaining = args.max_cycles.saturating_sub(m.cycle());
+    let halted = m.halted() || m.run(remaining, &mut observe);
     let elapsed = t1.elapsed();
     if halted {
         let before = m.host.uart.received.len();

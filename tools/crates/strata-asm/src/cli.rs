@@ -49,6 +49,8 @@ pub struct AsArgs {
     pub map: Option<String>,
     pub include_dirs: Vec<String>,
     pub defines: Vec<(String, i64)>,
+    pub gc_sections: bool,
+    pub keep_symbols: Vec<String>,
     pub help: bool,
     pub version: bool,
 }
@@ -63,6 +65,10 @@ usage: strata-as [options] <input.s>...
       --debug <file>      debug information (.sdb JSON)
       --listing <file>    listing: address, encoding, source text
       --map <file>        placement of every input section and symbol
+      --gc-sections       remove input sections not reachable from the entry
+                          symbol, KEEP() layout patterns or --keep-symbol
+      --keep-symbol <sym> with --gc-sections, keep the section defining <sym>
+                          (repeatable)
   -I <dir>                search directory for .include / .incbin
   -D <sym>=<value>        define an absolute symbol before assembly
   -h, --help              show this help
@@ -110,6 +116,8 @@ pub fn parse_as_args(args: &[String]) -> Result<AsArgs, String> {
         match name {
             "h" | "help" => a.help = true,
             "V" | "version" => a.version = true,
+            "gc-sections" if inline.is_none() => a.gc_sections = true,
+            "keep-symbol" => a.keep_symbols.push(value("a symbol name")?),
             "T" | "layout" => a.layout = Some(value("a file name")?),
             "org" => {
                 let v = value("an address")?;
@@ -186,6 +194,8 @@ pub fn run_as(args: &[String]) -> i32 {
         },
         include_dirs: a.include_dirs.iter().map(PathBuf::from).collect(),
         defines: a.defines.clone(),
+        gc_sections: a.gc_sections,
+        keep_symbols: a.keep_symbols.clone(),
     };
     let out = assemble_and_link(&opts);
     eprint!("{}", out.diags.render(&out.files, "strata-as"));
@@ -380,6 +390,14 @@ mod tests {
         assert!(parse_as_args(&args("--org 0 --bogus x.s")).is_err());
         assert!(parse_as_args(&args("--org 0 -D 1x=2 x.s")).is_err());
         assert!(parse_as_args(&args("--org 0 x.s -o")).is_err());
+        let g = parse_as_args(&args(
+            "--org 0 --gc-sections --keep-symbol a --keep-symbol=b x.s",
+        ))
+        .unwrap();
+        assert!(g.gc_sections);
+        assert_eq!(g.keep_symbols, vec!["a", "b"]);
+        assert!(parse_as_args(&args("--org 0 --gc-sections=yes x.s")).is_err());
+        assert!(parse_as_args(&args("--org 0 x.s --keep-symbol")).is_err());
     }
 
     #[test]

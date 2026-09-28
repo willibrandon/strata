@@ -702,6 +702,7 @@ fn include_incbin_and_defines() {
         layout: LayoutSpec::Org(0),
         include_dirs: vec![dir.join("inc")],
         defines: vec![("DEF_A".into(), 0x55), ("DEF_B".into(), 1)],
+        ..Options::default()
     };
     let out = strata_asm::assemble_and_link(&opts);
     let p = out
