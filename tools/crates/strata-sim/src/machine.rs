@@ -170,6 +170,18 @@ impl<E: Engine> Machine<E> {
         false
     }
 
+    /// Runs until the display completes a new frame (at most `max_cycles`).
+    /// Video keeps scanning after the CPU halts, so this also captures the
+    /// final screen of a halted machine.
+    pub fn run_until_frame(&mut self, max_cycles: u64) -> bool {
+        for _ in 0..max_cycles {
+            if self.step().frame_done {
+                return true;
+            }
+        }
+        false
+    }
+
     /// After halting, runs until the UART transmitter has been idle for two
     /// frames (so the last bytes written by software reach the terminal).
     pub fn drain_uart(&mut self, max_cycles: u64) {

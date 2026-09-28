@@ -1,0 +1,14 @@
+# User program layout for one slot. Generated values come from
+# include/strata/layout.h. The header section must come first.
+memory SLOT origin=@BASE@ length=@SIZE@
+entry _start
+
+output .text   in SLOT { .text.header .text .text.* }
+output .rodata in SLOT align=4 { .rodata .rodata.* .srodata .srodata.* }
+output .data   in SLOT align=4 { .data .data.* .sdata .sdata.* }
+output .bss    in SLOT align=4 nobits { .bss .bss.* .sbss .sbss.* COMMON }
+
+define __rx_end    = START(.data)
+define __data_end  = END(.data)
+define __bss_end   = END(.bss)
+define __stack_top = ORIGIN(SLOT) + LENGTH(SLOT)

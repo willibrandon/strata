@@ -28,7 +28,7 @@ const USAGE: &str = "usage: strata-run [options]
   --buttons <mask>       button levels (bit 0 UP ... bit 6 START)
   --max-cycles <n>       stop after n cycles (default 10000000)
   --trace <file>         write the retirement trace
-  --screenshot <ppm>     save the last complete video frame
+  --screenshot <file>    save the last complete video frame (.png or .ppm)
   --eval event|full      combinational evaluation strategy (default event)
   --power-on zero|<seed> initial flip-flop contents (default zero)
   --expect-halt <code>   exit status 0 only if the machine halts with this code
@@ -259,7 +259,11 @@ fn simulate<E: Engine + Report>(engine: E, args: &Args) -> Result<ExitCode, Stri
         cycles as f64 / elapsed.as_secs_f64(),
     );
     if let Some(p) = &args.screenshot {
-        std::fs::write(p, m.host.display.ppm()).map_err(|e| e.to_string())?;
+        // Show everything drawn so far: finish the frame in progress, then a full one.
+        m.run_until_frame(1_000_000);
+        m.run_until_frame(1_000_000);
+        let data = if p.extension().is_some_and(|e| e == "png") { m.host.display.png() } else { m.host.display.ppm() };
+        std::fs::write(p, data).map_err(|e| e.to_string())?;
         eprintln!("[strata-run] wrote frame {} to {}", m.host.display.frames, p.display());
     }
     m.engine.report()?;

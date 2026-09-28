@@ -1,0 +1,11 @@
+# Kernel layout. Generated values come from include/strata/layout.h.
+memory KRAM origin=@KERNEL_BASE@ length=@KERNEL_SIZE@
+entry _start
+
+output .text   in KRAM { .text.start .text .text.* }
+output .rodata in KRAM align=4 { .rodata .rodata.* .srodata .srodata.* }
+output .data   in KRAM align=4 { .data .data.* .sdata .sdata.* }
+output .bss    in KRAM align=16 nobits { .bss .bss.* .sbss .sbss.* COMMON }
+
+define __bss_start = START(.bss)
+define __bss_end   = END(.bss)

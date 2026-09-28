@@ -318,6 +318,11 @@ impl Display {
         out
     }
 
+    /// The last complete frame as a PNG image.
+    pub fn png(&self) -> Vec<u8> {
+        png_rgb8(VIDEO_W as u32, VIDEO_H as u32, &self.rgb8())
+    }
+
     /// The last complete frame as a binary PPM image.
     pub fn ppm(&self) -> Vec<u8> {
         let mut out = format!("P6\n{VIDEO_W} {VIDEO_H}\n255\n").into_bytes();
@@ -326,9 +331,69 @@ impl Display {
     }
 }
 
+/// Encodes an RGB image as a PNG with uncompressed (stored) deflate blocks.
+pub fn png_rgb8(w: u32, h: u32, rgb: &[u8]) -> Vec<u8> {
+    fn crc32(data: &[u8]) -> u32 {
+        let mut c = !0u32;
+        for &b in data {
+            c ^= b as u32;
+            for _ in 0..8 {
+                c = (c >> 1) ^ (0xEDB8_8320 & (c & 1).wrapping_neg());
+            }
+        }
+        !c
+    }
+    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        out.extend((data.len() as u32).to_be_bytes());
+        let start = out.len();
+        out.extend(kind);
+        out.extend(data);
+        let c = crc32(&out[start..]);
+        out.extend(c.to_be_bytes());
+    }
+    // Raw scanlines, each with filter type 0.
+    let mut raw = Vec::with_capacity((w as usize * 3 + 1) * h as usize);
+    for row in rgb.chunks(w as usize * 3) {
+        raw.push(0);
+        raw.extend_from_slice(row);
+    }
+    // zlib stream with stored blocks.
+    let mut z = vec![0x78, 0x01];
+    let mut chunks = raw.chunks(65535).peekable();
+    while let Some(block) = chunks.next() {
+        z.push(chunks.peek().is_none() as u8);
+        z.extend((block.len() as u16).to_le_bytes());
+        z.extend((!(block.len() as u16)).to_le_bytes());
+        z.extend_from_slice(block);
+    }
+    let (mut a, mut b) = (1u32, 0u32);
+    for &x in &raw {
+        a = (a + x as u32) % 65521;
+        b = (b + a) % 65521;
+    }
+    z.extend(((b << 16) | a).to_be_bytes());
+
+    let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
+    let mut ihdr = Vec::new();
+    ihdr.extend(w.to_be_bytes());
+    ihdr.extend(h.to_be_bytes());
+    ihdr.extend([8, 2, 0, 0, 0]);
+    chunk(&mut out, b"IHDR", &ihdr);
+    chunk(&mut out, b"IDAT", &z);
+    chunk(&mut out, b"IEND", &[]);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn png_header() {
+        let p = png_rgb8(2, 1, &[255, 0, 0, 0, 255, 0]);
+        assert_eq!(&p[..8], b"\x89PNG\r\n\x1a\n");
+        assert_eq!(&p[12..16], b"IHDR");
+    }
 
     #[test]
     fn uart_loopback() {
