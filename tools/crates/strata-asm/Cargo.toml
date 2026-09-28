@@ -1,0 +1,20 @@
+[package]
+name = "strata-asm"
+description = "Strata assembler and linker (strata-as) and boot image packer (strata-pack)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+strata-isa = { path = "../strata-isa" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[[bin]]
+name = "strata-as"
+path = "src/bin/strata-as.rs"
+
+[[bin]]
+name = "strata-pack"
+path = "src/bin/strata-pack.rs"

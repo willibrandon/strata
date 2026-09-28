@@ -1,0 +1,9 @@
+[package]
+name = "strata-isa"
+description = "Strata S1 instruction set (RV32I + Zicsr + Zifencei): decoding, encoding, disassembly, register and CSR tables"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
