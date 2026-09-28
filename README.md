@@ -47,7 +47,7 @@ the gate-level model uses for it.
 docs/results.md lists every result and says which of them come from
 simulation, which from implementation tools, and which from hardware.
 
-## Layout of the repository
+## Repository
 
     rtl/        SystemVerilog: processor, SoC, peripherals, memories, FPGA top
     sw/         boot ROM, kernel, user programs, runtime library
